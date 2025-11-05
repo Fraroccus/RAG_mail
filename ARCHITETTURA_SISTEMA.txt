@@ -1,0 +1,331 @@
+=================================================================
+SISTEMA EMAIL RAG - ITS MAKER ACADEMY FOUNDATION
+Riepilogo Architettura e Componenti
+=================================================================
+
+PANORAMICA GENERALE
+-------------------
+Sistema completo di risposta automatica email basato su RAG 
+(Retrieval-Augmented Generation) con interfaccia admin in italiano.
+
+Caratteristiche principali:
+✓ 100% locale (nessuna API esterna per LLM)
+✓ Dual knowledge base (stile + contenuto)
+✓ Rilevamento automatico lingua
+✓ Approvazione manuale bozze
+✓ Integrazione Outlook via Microsoft Graph API
+✓ PostgreSQL per persistenza dati
+✓ React frontend con Material-UI
+
+=================================================================
+ARCHITETTURA SISTEMA
+=================================================================
+
+BACKEND (Flask + Python)
+------------------------
+flask_app.py
+  └─ API REST in italiano
+  └─ Gestione email, bozze, documenti
+  └─ Serve frontend React (build/)
+
+dual_rag_system.py
+  └─ Logica RAG con due knowledge base separate
+  └─ Retrieval da historical_emails + enrollment_docs
+  └─ Generazione risposta contestuale
+
+email_connector.py
+  └─ Microsoft Graph API integration
+  └─ Fetch, send, mark as read
+
+language_detector.py
+  └─ Rilevamento lingua (langdetect)
+  └─ Estrazione info (query type, topics)
+  └─ Istruzioni multilingua per LLM
+
+database.py
+  └─ SQLAlchemy models
+  └─ Email, EmailDraft, HistoricalEmail, 
+     EnrollmentDocument, SystemSettings
+
+vector_store.py
+  └─ FAISS per vector search
+  └─ Supporto multi-collection
+  └─ Embedding con sentence-transformers
+
+local_llm.py
+  └─ Generazione testo con flan-t5-large
+  └─ GPU acceleration (CUDA)
+
+FRONTEND (React)
+----------------
+App.js
+  └─ Router principale
+  └─ Layout con drawer navigation
+  └─ Interfaccia completamente in italiano
+
+Dashboard.js
+  └─ Statistiche sistema
+  └─ Bottone recupera email
+  └─ Info knowledge base
+
+EmailList.js
+  └─ Tabella email ricevute
+  └─ Filtri per stato
+  └─ Link a dettagli
+
+EmailDetail.js
+  └─ Visualizzazione email completa
+  └─ Generazione bozza
+  └─ Modifica, approvazione, invio
+  └─ Gestione workflow completo
+
+HistoricalEmails.js
+  └─ CRUD email storiche
+  └─ Form inserimento esempi
+  └─ Indicizzazione automatica
+
+EnrollmentDocs.js
+  └─ CRUD documenti iscrizione
+  └─ Categorizzazione (tipo, paese, programma)
+  └─ Priorità e indicizzazione
+
+DATABASE (PostgreSQL)
+---------------------
+Tabelle:
+- emails: Email ricevute
+- email_drafts: Bozze generate (pending/approved/rejected/sent)
+- historical_emails: Esempi stile scrittura
+- enrollment_documents: Info ufficiali iscrizione
+- system_settings: Configurazione
+
+VECTOR DATABASE (FAISS)
+-----------------------
+Collections:
+- historical_emails_collection: Chunks email storiche
+- enrollment_docs_collection: Chunks documenti ufficiali
+
+=================================================================
+WORKFLOW COMPLETO
+=================================================================
+
+1. RICEZIONE EMAIL
+   Outlook → Microsoft Graph API → flask_app.py
+   └─ Parsing email
+   └─ Rilevamento lingua
+   └─ Estrazione query type
+   └─ Salvataggio in DB
+
+2. GENERAZIONE BOZZA
+   User richiesta → dual_rag_system.py
+   └─ Retrieval da historical_emails (stile)
+   └─ Retrieval da enrollment_docs (contenuto)
+   └─ Prompt construction
+   └─ LLM generation (flan-t5-large)
+   └─ Confidence scoring
+   └─ Salvataggio bozza (status: pending)
+
+3. REVISIONE
+   Admin panel → EmailDetail
+   └─ Visualizzazione bozza
+   └─ Modifica opzionale
+   └─ Approvazione/Rifiuto
+   └─ Update status
+
+4. INVIO
+   Bozza approvata → email_connector.py
+   └─ Send via Microsoft Graph
+   └─ Mark original as read
+   └─ Update status: sent
+
+=================================================================
+DUAL RAG SYSTEM - DETTAGLIO
+=================================================================
+
+KNOWLEDGE BASE 1: Historical Emails
+------------------------------------
+Scopo: Apprendimento stile scrittura
+Contenuto: Coppie domanda-risposta precedenti
+Formato: "DOMANDA: ... RISPOSTA: ..."
+Retrieval: Semantic similarity alla query studente
+Uso: Template stile per generazione
+
+KNOWLEDGE BASE 2: Enrollment Documents
+---------------------------------------
+Scopo: Informazioni fattuali accurate
+Contenuto: Procedure, requisiti, FAQ, scadenze
+Formato: Chunks di testo con metadata
+Retrieval: Semantic similarity + metadata filtering
+Uso: Contenuto informativo per risposta
+
+PROMPT CONSTRUCTION:
+-------------------
+```
+Sei un assistente email per ITS MAKER ACADEMY.
+[Istruzione lingua rilevata]
+
+ESEMPI DI STILE:
+[Historical emails retrieved]
+
+INFORMAZIONI UFFICIALI:
+[Enrollment docs retrieved]
+
+EMAIL STUDENTE:
+[Incoming email]
+
+ISTRUZIONI:
+- Rispondi nella lingua dello studente
+- Usa stile simile agli esempi
+- Includi info accurate dai documenti
+```
+
+CONFIDENCE SCORING:
+------------------
+Basato su:
+- Distanza semantica chunks retrieved
+- Peso: 30% historical, 70% factual
+- Range: 0.0 - 1.0
+- Threshold auto-send: 0.9 (se abilitato)
+
+=================================================================
+CONFIGURAZIONE (config.py)
+=================================================================
+
+Modelli:
+- LLM_MODEL = "google/flan-t5-large" (~3GB)
+- EMBEDDING_MODEL = "all-MiniLM-L6-v2" (~80MB)
+
+Parametri generazione:
+- MAX_NEW_TOKENS = 512
+- TEMPERATURE = 0.7
+- TOP_K_RESULTS = 3 (enrollment)
+- TOP_K_STYLE = 2 (historical)
+
+Email system:
+- EMAIL_CHECK_INTERVAL = 300s
+- AUTO_SEND_ENABLED = False
+- CONFIDENCE_THRESHOLD = 0.9
+
+=================================================================
+SICUREZZA E PRIVACY
+=================================================================
+
+Credenziali:
+✓ .env file (gitignored)
+✓ Environment variables per secrets
+✓ OAuth2 per Microsoft Graph
+
+Dati studenti:
+✓ Database locale PostgreSQL
+✓ Nessun invio a servizi esterni
+✓ GDPR compliant (data locale)
+
+Access control:
+✓ Flask secret key
+✓ Admin panel locale (no auth implementato)
+✓ Pronto per aggiunta autenticazione
+
+=================================================================
+ESTENSIBILITÀ
+=================================================================
+
+UPGRADE LLM:
+- Sostituire flan-t5-large con Mistral-7B
+- Modificare config.py + local_llm.py
+- Richiede più VRAM (~6-8GB)
+
+AGGIUNTA LINGUE:
+- Espandere language_detector.py
+- Aggiungere istruzioni multilingua
+- Nessuna modifica architettura
+
+DEPLOYMENT SERVER:
+- Docker containerization
+- Nginx reverse proxy
+- PostgreSQL remoto
+- Environment variables per config
+
+AUTENTICAZIONE:
+- Flask-Login integration
+- User roles (admin, reviewer)
+- Session management
+
+ANALYTICS:
+- Tracking metriche risposta
+- Dashboard visualizzazioni
+- Export report
+
+=================================================================
+MANUTENZIONE
+=================================================================
+
+BACKUP:
+-------
+Database: pg_dump -U postgres email_rag_db > backup.sql
+Vector DB: Backup cartella chroma_db/
+.env file: Mantieni copia sicura credenziali
+
+UPDATE MODELLI:
+--------------
+LLM: Cambio in config.py, riavvio sistema
+Knowledge base: CRUD via admin panel
+
+MONITORING:
+----------
+Logs: Console flask_app.py
+Errori: Try-catch con messaggi utente
+Stats: Dashboard endpoint /api/stats
+
+=================================================================
+LIMITAZIONI ATTUALI
+=================================================================
+
+✗ Nessuna autenticazione utenti
+✗ Nessun rate limiting API
+✗ Nessun sistema notifiche real-time
+✗ Frontend non ottimizzato per mobile (usabile ma migliorabile)
+✗ Nessun sistema backup automatico
+✗ Nessuna gestione allegati email
+✗ Nessuna history conversazioni multi-email
+
+POSSIBILI MIGLIORAMENTI FUTURI:
+-------------------------------
+✓ WebSocket per notifiche real-time
+✓ Coda async per generazione bozze
+✓ Support attachment extraction
+✓ Thread detection per conversazioni
+✓ A/B testing risposte
+✓ Fine-tuning LLM su dati specifici
+✓ Mobile app (React Native)
+
+=================================================================
+REQUISITI HARDWARE MINIMI
+=================================================================
+
+Development:
+- CPU: 4+ cores
+- RAM: 8GB+
+- GPU: NVIDIA con CUDA (opzionale ma raccomandato)
+- Disk: 10GB liberi
+- Internet: Per download modelli (primo avvio)
+
+Production:
+- CPU: 8+ cores
+- RAM: 16GB+
+- GPU: NVIDIA RTX (8GB VRAM)
+- Disk: 20GB+ (per crescita database)
+- Internet: Stabile per Microsoft Graph API
+
+=================================================================
+CONCLUSIONE
+=================================================================
+
+Sistema completo, funzionale e pronto all'uso per:
+✓ Automatizzazione risposte email studenti internazionali
+✓ Mantenimento stile personale nelle risposte
+✓ Accuratezza informazioni ufficiali
+✓ Workflow review-approval robusto
+✓ Scalabile e estendibile
+
+Prossimi passi documentati in GUIDA_RAPIDA.txt
+
+=================================================================

@@ -1,0 +1,257 @@
+============================================================
+GUIDA RAPIDA - SISTEMA EMAIL RAG
+ITS MAKER ACADEMY FOUNDATION
+============================================================
+
+PRIMA DI INIZIARE
+-----------------
+Assicurati di aver completato l'installazione seguendo GUIDA_INSTALLAZIONE.txt
+
+============================================================
+CONFIGURAZIONE INIZIALE (UNA SOLA VOLTA)
+============================================================
+
+PASSO 1: Setup Database e Credenziali
+--------------------------------------
+1. Apri PowerShell nella cartella del progetto
+2. Esegui:
+   python setup_database.py
+
+3. Segui le istruzioni per:
+   - Creare database PostgreSQL
+   - Inserire credenziali Microsoft Graph API
+   - Configurare ambiente
+
+PASSO 2: Installa Dipendenze
+-----------------------------
+pip install -r requirements.txt
+
+NOTA: La prima installazione può richiedere 10-15 minuti
+
+PASSO 3: Build Frontend React
+------------------------------
+cd frontend
+npm install
+npm run build
+cd ..
+
+============================================================
+AVVIO DEL SISTEMA
+============================================================
+
+OGNI VOLTA CHE VUOI USARE IL SISTEMA:
+
+1. Assicurati che PostgreSQL sia in esecuzione
+   
+2. Apri PowerShell nella cartella del progetto
+
+3. Avvia Flask:
+   python flask_app.py
+
+4. Attendi i messaggi:
+   ✓ Database inizializzato
+   ✓ RAG system inizializzato
+   
+5. Apri browser: http://localhost:5000
+
+============================================================
+PRIMO UTILIZZO - CONFIGURAZIONE KNOWLEDGE BASE
+============================================================
+
+STEP 1: Aggiungi Email Storiche
+--------------------------------
+Nel pannello admin:
+1. Vai su "Email Storiche"
+2. Clicca "Aggiungi Email Storica"
+3. Per ogni esempio:
+   - Inserisci domanda studente
+   - Inserisci tua risposta
+   - Specifica lingua (it, en, ecc.)
+   - Aggiungi paese se rilevante (Italia, India, ecc.)
+   - Aggiungi tags (iscrizione, visto, scadenza, ecc.)
+
+RACCOMANDAZIONE: Aggiungi almeno 5-10 esempi per ottenere 
+uno stile di scrittura coerente.
+
+STEP 2: Aggiungi Documenti Iscrizione
+--------------------------------------
+1. Vai su "Documenti Iscrizione"
+2. Clicca "Aggiungi Documento"
+3. Per ogni documento:
+   - Titolo descrittivo
+   - Contenuto completo (procedure, requisiti, ecc.)
+   - Tipo documento (procedura, FAQ, scadenza, ecc.)
+   - Paese (ALL se generale, specifico altrimenti)
+   - Programma (ALL se generale)
+   - Priorità (alta per info critiche)
+
+DOCUMENTI ESSENZIALI DA AGGIUNGERE:
+✓ Procedura generale di iscrizione
+✓ Requisiti documenti (per ogni paese prioritario)
+✓ Scadenze iscrizioni
+✓ Informazioni visti (Italia, India, Tunisia, Egitto)
+✓ Tasse e costi
+✓ FAQ comuni
+
+============================================================
+WORKFLOW OPERATIVO
+============================================================
+
+GESTIONE EMAIL QUOTIDIANA:
+
+1. RECUPERA EMAIL
+   ----------------
+   - Dashboard > "Recupera Nuove Email"
+   - Il sistema legge email non lette da Outlook
+   - Rileva automaticamente la lingua
+
+2. GENERA BOZZA
+   -------------
+   - Email > Clicca su email > "Genera Bozza Risposta"
+   - Il sistema:
+     * Analizza la domanda
+     * Cerca esempi simili (stile)
+     * Cerca informazioni rilevanti (contenuto)
+     * Genera risposta nella lingua dello studente
+
+3. RIVEDI E MODIFICA
+   ------------------
+   - Leggi bozza generata
+   - Controlla accuratezza informazioni
+   - Modifica se necessario (clicca "Modifica")
+   - Aggiungi note se serve
+
+4. APPROVA
+   --------
+   - Se soddisfatto, clicca "Approva"
+   - Se non va bene, clicca "Rifiuta" (con motivo)
+
+5. INVIA
+   ------
+   - Dopo approvazione, clicca "Invia Email"
+   - Email inviata automaticamente via Outlook
+   - Email originale marcata come letta
+
+============================================================
+CONSIGLI D'USO
+============================================================
+
+MIGLIORARE LA QUALITÀ DELLE RISPOSTE:
+-------------------------------------
+✓ Aggiungi più email storiche (varietà di situazioni)
+✓ Mantieni documenti aggiornati
+✓ Usa tags specifici per facilitare il retrieval
+✓ Specifica sempre il paese quando rilevante
+✓ Priorità "alta" per info critiche (scadenze, requisiti)
+
+GESTIONE LINGUE:
+---------------
+✓ Il sistema rileva automaticamente la lingua dell'email
+✓ Risponde nella stessa lingua
+✓ Aggiungi esempi in italiano E inglese per miglior stile
+✓ Documenti possono essere multilingua
+
+CONFIDENZA E QUALITÀ:
+--------------------
+✓ Score confidenza visibile nella bozza
+✓ Bassa confidenza (<60%) = rivedi attentamente
+✓ Alta confidenza (>80%) = generalmente affidabile
+✓ Sempre controllare info critiche (scadenze, requisiti)
+
+============================================================
+MANUTENZIONE REGOLARE
+============================================================
+
+SETTIMANALE:
+-----------
+✓ Aggiungi nuove email di successo alle Email Storiche
+✓ Controlla statistiche nella Dashboard
+
+MENSILE:
+--------
+✓ Aggiorna documenti con nuove scadenze/procedure
+✓ Rivedi email rifiutate per pattern comuni
+✓ Aggiungi FAQ per domande ricorrenti
+
+TRIMESTRALE:
+-----------
+✓ Backup database (vedi GUIDA_INSTALLAZIONE.txt)
+✓ Pulizia email vecchie se necessario
+✓ Revisione generale knowledge base
+
+============================================================
+RISOLUZIONE PROBLEMI COMUNI
+============================================================
+
+"Bozza generata con poche informazioni"
+→ Aggiungi più documenti su quell'argomento
+→ Verifica che tags siano rilevanti
+
+"Stile risposta non coerente"
+→ Aggiungi più email storiche simili
+→ Verifica lingua esempi corrisponda
+
+"Lingua rilevata errata"
+→ Email troppo breve
+→ Modifica manualmente la risposta
+
+"Email non recuperate"
+→ Verifica credenziali Microsoft Graph in .env
+→ Controlla permessi in Azure Portal
+→ Verifica connessione internet
+
+"Errore database"
+→ Verifica PostgreSQL in esecuzione
+→ Controlla DATABASE_URL in .env
+→ Riavvia flask_app.py
+
+============================================================
+INVIO AUTOMATICO (AVANZATO)
+============================================================
+
+ABILITARE INVIO AUTOMATICO (SCONSIGLIATO INIZIALMENTE):
+
+1. In config.py, modifica:
+   AUTO_SEND_ENABLED = True
+   CONFIDENCE_THRESHOLD = 0.9
+
+2. Solo email con confidenza ≥ 90% verranno inviate auto
+3. Email sotto soglia richiedono ancora approvazione
+
+ATTENZIONE: Testa bene il sistema prima di abilitare!
+
+============================================================
+SUPPORTO
+============================================================
+
+File di log:
+- Console di flask_app.py mostra tutti gli eventi
+- Errori visibili in rosso
+
+Verifica configurazione:
+- Dashboard mostra stato sistema
+- Statistiche knowledge base
+- Modelli LLM caricati
+
+Per reset completo:
+1. Ferma flask_app.py
+2. Elimina cartella chroma_db/
+3. Riavvia flask_app.py
+4. Ri-carica email storiche e documenti
+
+============================================================
+BUON LAVORO!
+============================================================
+
+Il sistema migliorerà nel tempo man mano che aggiungi più
+esempi e documenti. Inizia con poche email, rivedi tutto 
+manualmente, e gradualmente aumenta l'automazione quando
+sei soddisfatto della qualità.
+
+Per domande o problemi, controlla i log e verifica che:
+✓ PostgreSQL sia in esecuzione
+✓ File .env sia configurato correttamente  
+✓ Modelli LLM siano scaricati (primo avvio: ~5-10 min)
+✓ Knowledge base abbia contenuti sufficienti
+
+============================================================

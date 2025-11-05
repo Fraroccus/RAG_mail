@@ -1,0 +1,221 @@
+=================================================================
+GUIDA INSTALLAZIONE - SISTEMA EMAIL RAG
+ITS MAKER ACADEMY FOUNDATION
+=================================================================
+
+PREREQUISITI
+-------------
+✓ Python 3.14.0
+✓ PostgreSQL (versione 12 o superiore)
+✓ NVIDIA GPU con CUDA (per modelli LLM)
+✓ Node.js e npm (per frontend React)
+✓ Account Outlook organizzazione
+
+=================================================================
+PASSO 1: INSTALLAZIONE POSTGRESQL
+=================================================================
+
+Windows:
+1. Scarica PostgreSQL da: https://www.postgresql.org/download/windows/
+2. Esegui l'installer
+3. Durante l'installazione:
+   - Annota la password del superuser (postgres)
+   - Porta predefinita: 5432
+4. Verifica installazione aprendo pgAdmin4
+
+=================================================================
+PASSO 2: CONFIGURAZIONE MICROSOFT GRAPH API
+=================================================================
+
+1. Vai su: https://portal.azure.com
+2. Accedi con l'account organizzazione Outlook
+3. Naviga: Azure Active Directory > App registrations
+4. Clicca "New registration":
+   - Nome: "ITS Email RAG System"
+   - Supported account types: "Accounts in this organizational directory only"
+   - Redirect URI: Web > http://localhost:5000/callback
+5. Dopo la creazione, annota:
+   - Application (client) ID
+   - Directory (tenant) ID
+6. Vai in "Certificates & secrets":
+   - Clicca "New client secret"
+   - Descrizione: "Email RAG Secret"
+   - Annota il VALUE (secret) immediatamente!
+7. Vai in "API permissions":
+   - Clicca "Add a permission" > Microsoft Graph > Application permissions
+   - Aggiungi:
+     * Mail.Read
+     * Mail.ReadWrite
+     * Mail.Send
+   - Clicca "Grant admin consent" (richiede admin)
+
+=================================================================
+PASSO 3: INSTALLAZIONE DIPENDENZE PYTHON
+=================================================================
+
+1. Apri PowerShell nella cartella del progetto
+2. Crea ambiente virtuale (opzionale ma consigliato):
+   python -m venv venv
+   .\venv\Scripts\Activate.ps1
+
+3. Installa dipendenze:
+   pip install -r requirements.txt
+
+Note: L'installazione può richiedere 10-15 minuti per scaricare
+tutti i pacchetti inclusi PyTorch con supporto CUDA.
+
+=================================================================
+PASSO 4: SETUP DATABASE
+=================================================================
+
+Esegui lo script di setup:
+   python setup_database.py
+
+Lo script richiederà:
+1. Credenziali PostgreSQL
+2. Nome database (default: email_rag_db)
+3. Credenziali Microsoft Graph API (dal Passo 2)
+4. Configurazione Flask (generata automaticamente)
+
+Questo creerà:
+- Database PostgreSQL
+- File .env con tutte le configurazioni
+
+=================================================================
+PASSO 5: INSTALLAZIONE FRONTEND REACT
+=================================================================
+
+1. Vai nella cartella frontend:
+   cd frontend
+
+2. Installa dipendenze npm:
+   npm install
+
+3. Build per produzione:
+   npm run build
+
+4. Torna alla directory principale:
+   cd ..
+
+=================================================================
+PASSO 6: PRIMO AVVIO
+=================================================================
+
+1. Avvia il server Flask:
+   python flask_app.py
+
+2. Al primo avvio:
+   - Verranno scaricati i modelli LLM (~3GB per flan-t5-large)
+   - Il database verrà inizializzato con le tabelle
+   - Può richiedere 5-10 minuti
+
+3. Quando vedi:
+   "✓ Database inizializzato"
+   "✓ RAG system inizializzato"
+   Il sistema è pronto!
+
+4. Apri browser: http://localhost:5000
+
+=================================================================
+UTILIZZO INIZIALE
+=================================================================
+
+STEP 1: CARICA EMAIL STORICHE
+------------------------------
+1. Nell'admin panel, vai su "Email Storiche"
+2. Clicca "Aggiungi Email Storica"
+3. Inserisci esempi delle tue email precedenti:
+   - Domanda studente
+   - Tua risposta
+   - Lingua, paese, programma, tags
+
+STEP 2: CARICA DOCUMENTI ISCRIZIONE
+------------------------------------
+1. Vai su "Documenti Iscrizione"
+2. Clicca "Aggiungi Documento"
+3. Inserisci informazioni ufficiali:
+   - Procedure di iscrizione
+   - Requisiti per paese
+   - Scadenze
+   - FAQ
+   - Informazioni visti
+   - Tasse e costi
+
+STEP 3: RECUPERA EMAIL
+-----------------------
+1. Vai su "Email"
+2. Clicca "Recupera Nuove Email"
+3. Il sistema leggerà le email non lette da Outlook
+
+STEP 4: GENERA E RIVEDI RISPOSTE
+---------------------------------
+1. Clicca su un'email nella lista
+2. Clicca "Genera Bozza Risposta"
+3. Rivedi la risposta generata
+4. Modifica se necessario
+5. Approva o rigetta
+6. Se approvata, clicca "Invia"
+
+=================================================================
+CONFIGURAZIONE AVANZATA
+=================================================================
+
+Modificare config.py per:
+- Cambiare modello LLM (flan-t5-large <-> flan-t5-base)
+- Regolare parametri generazione (temperatura, max_tokens)
+- Modificare chunk size per documenti
+- Abilitare invio automatico (sconsigliato inizialmente)
+
+Modificare .env per:
+- Aggiungere firma email (EMAIL_SIGNATURE)
+- Cambiare porta Flask
+- Configurare database remoto
+
+=================================================================
+RISOLUZIONE PROBLEMI
+=================================================================
+
+ERRORE: "CUDA not available"
+→ Verifica driver NVIDIA aggiornati
+→ PyTorch installato con supporto CUDA
+→ In config.py, cambierà automaticamente a CPU
+
+ERRORE: "Failed to acquire token"
+→ Verifica credenziali Microsoft Graph in .env
+→ Controlla che admin abbia dato consent alle API permissions
+
+ERRORE: "No documents indexed"
+→ Carica almeno 3-5 email storiche
+→ Carica documenti iscrizione
+→ Verifica che status "indexed" sia True
+
+Email non vengono lette
+→ Verifica account Outlook configurato correttamente
+→ Controlla che ci siano email non lette
+→ Verifica permessi Mail.Read in Azure
+
+=================================================================
+MANUTENZIONE
+=================================================================
+
+BACKUP DATABASE:
+   pg_dump -U postgres email_rag_db > backup.sql
+
+AGGIORNAMENTO DOCUMENTI:
+   - Aggiorna documenti nell'admin panel
+   - Re-indicizzazione automatica
+
+PULIZIA VECTOR DATABASE:
+   - Elimina file in ./chroma_db/ per reset completo
+   - Verranno ricreati al prossimo avvio
+
+=================================================================
+CONTATTI E SUPPORTO
+=================================================================
+
+Per problemi tecnici o domande:
+- Controlla i log in console
+- Verifica file .env configurato correttamente
+- Assicurati che PostgreSQL sia in esecuzione
+
+=================================================================

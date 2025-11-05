@@ -1,0 +1,181 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                      LOCAL RAG SYSTEM - QUICK START                  ║
+║                     100% Free | 100% Local | No API Keys             ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+📋 WHAT YOU HAVE:
+  ✓ Complete RAG system with local AI models
+  ✓ GPU acceleration (NVIDIA RTX 1000 Ada)
+  ✓ Document processing (PDF, DOCX, TXT)
+  ✓ Vector database (ChromaDB)
+  ✓ Sample documents included
+  ✓ No internet needed after setup
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 INSTALLATION (ONE TIME ONLY):
+
+   Option A - Automatic (Recommended):
+   ─────────────────────────────────
+   1. Double-click: install.bat
+   2. Wait for installation to complete
+   3. Done!
+
+   Option B - Manual:
+   ──────────────────
+   1. Open PowerShell in this folder
+   2. Run: pip install -r requirements.txt
+   3. Wait for completion
+
+   ⏱️ Time: 5-10 minutes (downloads ~2GB)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+▶️ RUNNING THE SYSTEM:
+
+   1. Open PowerShell in this folder
+   2. Run: python main.py
+   3. First run downloads models (~1GB, one time only)
+   4. Menu appears!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 USING THE SYSTEM:
+
+   STEP 1 - INDEX DOCUMENTS:
+   ─────────────────────────
+   • Select menu option: 1
+   • System processes all files in 'documents' folder
+   • Included: 3 sample documents about AI, Python, and RAG
+   
+   STEP 2 - ASK QUESTIONS:
+   ───────────────────────
+   • Select menu option: 2
+   • Type your question
+   • Get AI-generated answer with sources!
+
+   Try these questions:
+   ┌─────────────────────────────────────────────────┐
+   │ • What is machine learning?                     │
+   │ • How do I use Python for data science?         │
+   │ • What is a RAG system?                          │
+   │ • Explain deep learning                          │
+   │ • What are the components of a RAG system?       │
+   └─────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📂 ADDING YOUR OWN DOCUMENTS:
+
+   1. Copy your files to the 'documents' folder
+      • Supported: .txt, .pdf, .docx
+      • Any content, any topic!
+   
+   2. Run: python main.py
+   
+   3. Choose option 1 (Index documents)
+   
+   4. Choose option 2 (Query) and ask about your docs!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎛️ MENU OPTIONS:
+
+   1️⃣  Index documents     → Process files from 'documents' folder
+   2️⃣  Query the system    → Ask questions
+   3️⃣  Show statistics     → View system info & settings
+   4️⃣  Clear index         → Remove all indexed data
+   5️⃣  Exit                → Close program
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️ CUSTOMIZATION:
+
+   Edit 'config.py' to change:
+   • AI models (larger = better quality, slower)
+   • Chunk size (smaller = more precise)
+   • Number of retrieved results
+   • Temperature (creativity level)
+
+   Available models to try:
+   ┌──────────────────────────────────────────────┐
+   │ google/flan-t5-small    →  300MB (fastest)   │
+   │ google/flan-t5-base     →  900MB (default)   │
+   │ google/flan-t5-large    → 3GB (best quality) │
+   └──────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 WHAT MODELS ARE DOWNLOADED:
+
+   Embedding Model (for understanding text):
+   • sentence-transformers/all-MiniLM-L6-v2 (~80MB)
+   
+   LLM Model (for generating answers):
+   • google/flan-t5-base (~900MB)
+   
+   Total download: ~1GB (one time only)
+   Saved to: C:\Users\LAVORO\.cache\huggingface\
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 HELPFUL TIPS:
+
+   ✓ First run is slower (downloading models)
+   ✓ GPU makes generation much faster
+   ✓ Index documents once, query many times
+   ✓ More retrieval results = better context
+   ✓ Larger models = better answers but slower
+   ✓ Everything works offline after setup
+   ✓ All data stays on your computer
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ TROUBLESHOOTING:
+
+   Problem: Installation fails
+   → Run: python -m pip install --upgrade pip
+   → Try installation again
+
+   Problem: GPU not detected
+   → Update NVIDIA drivers
+   → Will work on CPU (just slower)
+
+   Problem: Out of memory
+   → Close other programs
+   → Use smaller model in config.py
+
+   Problem: Slow responses
+   → Check GPU is detected (option 3)
+   → Try smaller model
+
+   For detailed help: See SETUP_GUIDE.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 DOCUMENTATION:
+
+   • SETUP_GUIDE.md  → Detailed setup instructions
+   • README.md       → Full system documentation
+   • config.py       → All configurable settings
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 YOUR CHECKLIST:
+
+   [ ] Run install.bat (or pip install -r requirements.txt)
+   [ ] Run python main.py
+   [ ] Wait for models to download
+   [ ] Choose option 1 - Index documents
+   [ ] Choose option 2 - Ask a question
+   [ ] See the magic happen! ✨
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+                          🎉 YOU'RE ALL SET! 🎉
+
+              Start with: python main.py
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  Questions? Check SETUP_GUIDE.md or README.md for detailed help     ║
+╚══════════════════════════════════════════════════════════════════════╝

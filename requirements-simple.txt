@@ -1,0 +1,19 @@
+# Simplified requirements for Python 3.14.0
+# Install core packages first, then add others
+
+# Core ML
+torch
+transformers
+sentence-transformers
+
+# Vector DB - use older stable version
+chromadb==0.4.22
+
+# Document processing
+pypdf
+python-docx
+beautifulsoup4
+
+# Utils
+numpy
+tqdm

@@ -1,0 +1,308 @@
+╔═══════════════════════════════════════════════════════════════╗
+║  CHECKLIST SETUP - SISTEMA EMAIL RAG                          ║
+║  ITS MAKER ACADEMY FOUNDATION                                 ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Questa checklist ti guida passo-passo nella configurazione del sistema.
+Segui l'ordine e spunta ogni voce completata.
+
+═══════════════════════════════════════════════════════════════
+FASE 1: PREREQUISITI
+═══════════════════════════════════════════════════════════════
+
+[ ] Python 3.14.0 installato
+    Verifica: python --version
+
+[ ] PostgreSQL installato e funzionante
+    Verifica: apri pgAdmin4 oppure usa:
+    psql --version
+
+[ ] Node.js e npm installati
+    Verifica: node --version && npm --version
+
+[ ] NVIDIA GPU drivers aggiornati (opzionale ma raccomandato)
+    Verifica: nvidia-smi
+
+[ ] Account Outlook organizzazione attivo
+
+═══════════════════════════════════════════════════════════════
+FASE 2: CONFIGURAZIONE AZURE / MICROSOFT GRAPH
+═══════════════════════════════════════════════════════════════
+
+[ ] Accesso a Azure Portal (https://portal.azure.com)
+
+[ ] App Registration creata:
+    - Nome: "ITS Email RAG System"
+    - Account type: Organizational directory only
+    - Redirect URI: http://localhost:5000/callback
+
+[ ] Credenziali annotate:
+    [ ] Application (client) ID: ____________________________
+    [ ] Directory (tenant) ID: ______________________________
+    [ ] Client Secret VALUE: ________________________________
+        ⚠️ IMPORTANTE: Salva subito, non sarà più visibile!
+
+[ ] API Permissions configurate e approvate:
+    [ ] Mail.Read
+    [ ] Mail.ReadWrite  
+    [ ] Mail.Send
+    [ ] Admin consent concesso (icona verde ✓)
+
+═══════════════════════════════════════════════════════════════
+FASE 3: SETUP DATABASE POSTGRESQL
+═══════════════════════════════════════════════════════════════
+
+[ ] PostgreSQL in esecuzione
+    Windows: Verifica servizio "postgresql-x64-XX"
+
+[ ] Password postgres annotata: ____________________________
+
+[ ] Eseguito setup database:
+    python setup_database.py
+
+[ ] Database creato con successo (nome: ________________)
+
+[ ] File .env creato con tutte le configurazioni
+
+═══════════════════════════════════════════════════════════════
+FASE 4: INSTALLAZIONE DIPENDENZE
+═══════════════════════════════════════════════════════════════
+
+[ ] Ambiente virtuale creato (opzionale):
+    python -m venv venv
+    .\venv\Scripts\Activate.ps1
+
+[ ] Dipendenze Python installate:
+    pip install -r requirements.txt
+    ⏱️ Tempo stimato: 10-15 minuti
+
+[ ] Nessun errore durante installazione
+
+[ ] Dipendenze frontend installate:
+    cd frontend
+    npm install
+    ⏱️ Tempo stimato: 2-3 minuti
+
+═══════════════════════════════════════════════════════════════
+FASE 5: BUILD FRONTEND
+═══════════════════════════════════════════════════════════════
+
+[ ] Build React completato:
+    (nella cartella frontend)
+    npm run build
+    ⏱️ Tempo stimato: 1-2 minuti
+
+[ ] Cartella frontend/build/ creata
+
+[ ] Tornato alla directory principale:
+    cd ..
+
+═══════════════════════════════════════════════════════════════
+FASE 6: PRIMO AVVIO
+═══════════════════════════════════════════════════════════════
+
+[ ] PostgreSQL in esecuzione
+
+[ ] File .env presente nella root del progetto
+
+[ ] Avviato Flask:
+    python flask_app.py
+
+[ ] Download modelli LLM completato (primo avvio)
+    ⏱️ Tempo stimato: 5-10 minuti
+    Modelli scaricati:
+    [ ] google/flan-t5-large (~3GB)
+    [ ] sentence-transformers/all-MiniLM-L6-v2 (~80MB)
+
+[ ] Messaggi di conferma visualizzati:
+    [ ] "✓ Database inizializzato"
+    [ ] "✓ Email connector inizializzato" (o warning se non config)
+    [ ] "✓ RAG system inizializzato"
+    [ ] "Running on http://0.0.0.0:5000"
+
+[ ] Browser aperto: http://localhost:5000
+
+[ ] Dashboard caricato correttamente
+
+═══════════════════════════════════════════════════════════════
+FASE 7: CONFIGURAZIONE KNOWLEDGE BASE
+═══════════════════════════════════════════════════════════════
+
+EMAIL STORICHE:
+--------------
+[ ] Aggiunte almeno 5 email storiche tramite admin panel
+
+[ ] Email copre vari scenari:
+    [ ] Richiesta generale iscrizione
+    [ ] Domande su documenti
+    [ ] Domande su scadenze
+    [ ] Domande su visti
+    [ ] Altre domande frequenti
+
+[ ] Lingue multiple se applicabile:
+    [ ] Italiano
+    [ ] Inglese
+    [ ] Altro: _______________
+
+[ ] Tags aggiunti per facilitare retrieval
+
+DOCUMENTI ISCRIZIONE:
+--------------------
+[ ] Aggiunti documenti essenziali:
+    [ ] Procedura generale iscrizione
+    [ ] Requisiti documenti (Italia)
+    [ ] Requisiti documenti (India/Pakistan/Bangladesh)
+    [ ] Requisiti documenti (Tunisia/Egitto)
+    [ ] Scadenze iscrizioni 2025
+    [ ] Informazioni visti Italia
+    [ ] Tasse e costi programmi
+    [ ] FAQ generali
+
+[ ] Ogni documento ha:
+    [ ] Tipo documento specificato
+    [ ] Paese indicato (ALL o specifico)
+    [ ] Programma indicato (ALL o specifico)
+    [ ] Priorità assegnata correttamente
+
+═══════════════════════════════════════════════════════════════
+FASE 8: TEST FUNZIONALITÀ
+═══════════════════════════════════════════════════════════════
+
+[ ] Test recupero email:
+    Dashboard > "Recupera Nuove Email"
+    Risultato: _____ email recuperate
+
+[ ] Test generazione bozza:
+    [ ] Email selezionata
+    [ ] Bozza generata senza errori
+    [ ] Lingua rilevata correttamente
+    [ ] Contenuto bozza sensato
+    [ ] Score confidenza visualizzato
+
+[ ] Test modifica bozza:
+    [ ] Pulsante "Modifica" funzionante
+    [ ] Modifiche salvate
+
+[ ] Test approvazione:
+    [ ] Bozza approvata
+    [ ] Status cambiato a "Approvata"
+
+[ ] Test invio (OPZIONALE - solo se email di test):
+    [ ] Email inviata con successo
+    [ ] Email originale marcata come letta
+    [ ] Conferma visibile
+
+═══════════════════════════════════════════════════════════════
+FASE 9: VERIFICA FINALE
+═══════════════════════════════════════════════════════════════
+
+[ ] Dashboard mostra statistiche corrette:
+    [ ] Email totali
+    [ ] Bozze pending
+    [ ] Email storiche
+    [ ] Documenti iscrizione
+    [ ] Chunks indicizzati
+
+[ ] Tutte le sezioni admin panel accessibili:
+    [ ] Dashboard
+    [ ] Email
+    [ ] Email Storiche
+    [ ] Documenti Iscrizione
+
+[ ] Nessun errore in console Flask
+
+[ ] Sistema funziona come previsto
+
+═══════════════════════════════════════════════════════════════
+FASE 10: DOCUMENTAZIONE E BACKUP
+═══════════════════════════════════════════════════════════════
+
+[ ] Letto GUIDA_RAPIDA.txt per workflow quotidiano
+
+[ ] Letto ARCHITETTURA_SISTEMA.txt per comprensione tecnica
+
+[ ] Credenziali salvate in luogo sicuro:
+    [ ] File .env backuppato
+    [ ] Password PostgreSQL annotata
+    [ ] Credenziali Azure annotate
+
+[ ] Primo backup database eseguito:
+    pg_dump -U postgres email_rag_db > backup_iniziale.sql
+
+═══════════════════════════════════════════════════════════════
+TROUBLESHOOTING RAPIDO
+═══════════════════════════════════════════════════════════════
+
+Se qualcosa non funziona:
+
+1. ERRORE DATABASE
+   → Verifica PostgreSQL in esecuzione
+   → Controlla DATABASE_URL in .env
+   → Riavvia flask_app.py
+
+2. ERRORE EMAIL CONNECTOR
+   → Verifica credenziali in .env
+   → Controlla admin consent in Azure
+   → Normale se non ancora configurato
+
+3. MODELLI NON SCARICATI
+   → Verifica connessione internet
+   → Attendi completamento download
+   → Controlla spazio disco (almeno 5GB liberi)
+
+4. FRONTEND NON CARICA
+   → Verifica npm run build eseguito
+   → Controlla cartella frontend/build/ esiste
+   → Riavvia flask_app.py
+
+5. BOZZE VUOTE/POVERE
+   → Aggiungi più email storiche
+   → Aggiungi più documenti iscrizione
+   → Verifica indicizzazione (status "Sì")
+
+═══════════════════════════════════════════════════════════════
+PROSSIMI PASSI
+═══════════════════════════════════════════════════════════════
+
+Una volta completata questa checklist:
+
+1. Usa il sistema in modalità manuale per 1-2 settimane
+
+2. Monitora qualità risposte e aggiungi:
+   - Più email storiche per situazioni non coperte
+   - Documenti mancanti
+   - FAQ per domande ricorrenti
+
+3. Dopo aver acquisito confidenza:
+   - Considera abilitazione invio automatico
+   - Regola threshold confidenza
+   - Espandi knowledge base
+
+4. Manutenzione regolare:
+   - Aggiorna documenti con nuove scadenze
+   - Aggiungi email di successo agli storici
+   - Backup database settimanale
+
+═══════════════════════════════════════════════════════════════
+COMPLETAMENTO
+═══════════════════════════════════════════════════════════════
+
+[ ] Tutte le fasi completate con successo
+
+[ ] Sistema funzionante e testato
+
+[ ] Pronto per uso quotidiano
+
+Data completamento setup: ____/____/________
+
+Note finali:
+____________________________________________________________
+____________________________________________________________
+____________________________________________________________
+
+═══════════════════════════════════════════════════════════════
+
+CONGRATULAZIONI! 🎉
+Il tuo sistema Email RAG è pronto all'uso!
+
+═══════════════════════════════════════════════════════════════

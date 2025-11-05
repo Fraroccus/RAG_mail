@@ -1,0 +1,19 @@
+# Compatible requirements for Python 3.14.0
+# ChromaDB doesn't work yet, so we'll use FAISS instead
+
+# Core ML
+torch
+transformers
+sentence-transformers
+
+# Vector DB - FAISS (works with Python 3.14)
+faiss-cpu
+
+# Document processing
+pypdf
+python-docx
+beautifulsoup4
+
+# Utils
+numpy
+tqdm
