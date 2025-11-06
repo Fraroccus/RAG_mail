@@ -144,6 +144,40 @@ def get_email(email_id):
         return jsonify({'errore': str(e)}), 500
 
 
+@app.route('/api/emails/generate-manual', methods=['POST'])
+def generate_manual_response():
+    """Genera risposta da email incollata manualmente"""
+    try:
+        data = request.json
+        
+        if not rag_system:
+            return jsonify({'errore': 'RAG system non inizializzato'}), 500
+        
+        # Prepara dati email
+        incoming_email = {
+            'subject': data.get('oggetto', ''),
+            'body': data.get('corpo', ''),
+            'sender_email': data.get('mittente', 'manuale@esempio.com'),
+            'sender_name': data.get('mittente', 'Manuale')
+        }
+        
+        # Genera risposta
+        result = rag_system.generate_email_response(incoming_email)
+        
+        return jsonify({
+            'successo': True,
+            'risposta': result['response'],
+            'lingua_rilevata': result['detected_language'],
+            'confidenza': result['confidence_score']
+        })
+    
+    except Exception as e:
+        print(f"❌ Errore generazione manuale: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'errore': str(e)}), 500
+
+
 # ============== ENDPOINTS BOZZE EMAIL ==============
 
 @app.route('/api/drafts/generate/<int:email_id>', methods=['POST'])
