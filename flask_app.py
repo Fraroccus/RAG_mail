@@ -23,6 +23,19 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 CORS(app)
 db.init_app(app)
 
+# Simple input sanitization
+import re
+
+def sanitize_text(text, max_len=None):
+    if not isinstance(text, str):
+        return ''
+    cleaned = re.sub(r'<[^>]*>', '', text)
+    cleaned = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', cleaned)
+    cleaned = cleaned.strip()
+    if max_len and isinstance(max_len, int):
+        cleaned = cleaned[:max_len]
+    return cleaned
+
 # Initialize components
 email_connector = None
 rag_system = None
@@ -71,16 +84,18 @@ def fetch_emails():
                 continue
             
             # Rileva lingua ed estrai info
-            detected_lang = language_detector.detect_language(email_data['body'])
-            student_info = language_detector.extract_student_info(email_data['body'])
+            body_clean = sanitize_text(email_data.get('body', ''), max_len=20000)
+            subject_clean = sanitize_text(email_data.get('subject', ''), max_len=500)
+            detected_lang = language_detector.detect_language(body_clean)
+            student_info = language_detector.extract_student_info(body_clean)
             
             # Crea record email
             email = Email(
-                message_id=email_data['message_id'],
-                sender_email=email_data['sender_email'],
-                sender_name=email_data['sender_name'],
-                subject=email_data['subject'],
-                body=email_data['body'],
+                message_id=sanitize_text(email_data.get('message_id', ''), max_len=500),
+                sender_email=sanitize_text(email_data.get('sender_email', ''), max_len=255),
+                sender_name=sanitize_text(email_data.get('sender_name', ''), max_len=255),
+                subject=subject_clean,
+                body=body_clean,
                 detected_language=detected_lang,
                 received_date=datetime.fromisoformat(email_data['received_date'].replace('Z', '+00:00')),
                 query_type=','.join(student_info['query_type'])
@@ -155,10 +170,10 @@ def generate_manual_response():
         
         # Prepara dati email
         incoming_email = {
-            'subject': data.get('oggetto', ''),
-            'body': data.get('corpo', ''),
-            'sender_email': data.get('mittente', 'manuale@esempio.com'),
-            'sender_name': data.get('mittente', 'Manuale')
+            'subject': sanitize_text(data.get('oggetto', ''), max_len=500),
+            'body': sanitize_text(data.get('corpo', ''), max_len=20000),
+            'sender_email': sanitize_text(data.get('mittente', 'manuale@esempio.com'), max_len=255),
+            'sender_name': sanitize_text(data.get('mittente', 'Manuale'), max_len=255)
         }
         
         # Genera risposta
@@ -246,10 +261,10 @@ def update_draft(draft_id):
         data = request.json
         
         if 'testo_modificato' in data:
-            draft.edited_response = data['testo_modificato']
+            draft.edited_response = sanitize_text(data['testo_modificato'], max_len=20000)
         
         if 'note_admin' in data:
-            draft.admin_notes = data['note_admin']
+            draft.admin_notes = sanitize_text(data['note_admin'], max_len=500)
         
         db.session.commit()
         
@@ -442,13 +457,13 @@ def add_historical_email():
         data = request.json
         
         email = HistoricalEmail(
-            subject=data.get('oggetto', ''),
-            student_query=data['domanda_studente'],
-            response=data['risposta'],
-            language=data.get('lingua', 'it'),
-            tags=data.get('tags', ''),
-            country=data.get('paese', ''),
-            program=data.get('programma', ''),
+            subject=sanitize_text(data.get('oggetto', ''), max_len=500),
+            student_query=sanitize_text(data['domanda_studente'], max_len=20000),
+            response=sanitize_text(data['risposta'], max_len=20000),
+            language=sanitize_text(data.get('lingua', 'it'), max_len=10),
+            tags=sanitize_text(data.get('tags', ''), max_len=500),
+            country=sanitize_text(data.get('paese', ''), max_len=100),
+            program=sanitize_text(data.get('programma', ''), max_len=255),
             date_sent=datetime.fromisoformat(data['data_invio']) if 'data_invio' in data else None
         )
         
@@ -518,14 +533,14 @@ def add_enrollment_doc():
         data = request.json
         
         doc = EnrollmentDocument(
-            title=data['titolo'],
-            filename=data.get('nome_file', ''),
-            content=data['contenuto'],
-            document_type=data.get('tipo_documento', 'general'),
-            country=data.get('paese', 'ALL'),
-            program=data.get('programma', 'ALL'),
-            language=data.get('lingua', 'it'),
-            priority=data.get('priorita', 'medium')
+            title=sanitize_text(data['titolo'], max_len=255),
+            filename=sanitize_text(data.get('nome_file', ''), max_len=255),
+            content=sanitize_text(data['contenuto'], max_len=200000),
+            document_type=sanitize_text(data.get('tipo_documento', 'general'), max_len=100),
+            country=sanitize_text(data.get('paese', 'ALL'), max_len=100),
+            program=sanitize_text(data.get('programma', 'ALL'), max_len=255),
+            language=sanitize_text(data.get('lingua', 'it'), max_len=10),
+            priority=sanitize_text(data.get('priorita', 'medium'), max_len=20)
         )
         
         db.session.add(doc)
@@ -564,17 +579,17 @@ def update_enrollment_doc(doc_id):
         data = request.json
         
         if 'titolo' in data:
-            doc.title = data['titolo']
+            doc.title = sanitize_text(data['titolo'], max_len=255)
         if 'contenuto' in data:
-            doc.content = data['contenuto']
+            doc.content = sanitize_text(data['contenuto'], max_len=200000)
         if 'tipo_documento' in data:
-            doc.document_type = data['tipo_documento']
+            doc.document_type = sanitize_text(data['tipo_documento'], max_len=100)
         if 'paese' in data:
-            doc.country = data['paese']
+            doc.country = sanitize_text(data['paese'], max_len=100)
         if 'programma' in data:
-            doc.program = data['programma']
+            doc.program = sanitize_text(data['programma'], max_len=255)
         if 'priorita' in data:
-            doc.priority = data['priorita']
+            doc.priority = sanitize_text(data['priorita'], max_len=20)
         
         doc.last_updated = datetime.utcnow()
         doc.indexed = False  # Richiede re-indicizzazione
