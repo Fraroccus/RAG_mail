@@ -153,12 +153,17 @@ class EnrollmentDocument(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     indexed = db.Column(db.Boolean, default=False)
     
-    def to_dict(self):
+    def to_dict(self, include_full_content=False):
+        content_display = self.content
+        if not include_full_content and len(self.content) > 500:
+            content_display = self.content[:500] + '...'
+        
         return {
             'id': self.id,
             'title': self.title,
             'filename': self.filename,
-            'content': self.content[:500] + '...' if len(self.content) > 500 else self.content,
+            'content': content_display,
+            'full_content_length': len(self.content),
             'document_type': self.document_type,
             'country': self.country,
             'program': self.program,
@@ -187,4 +192,32 @@ class SystemSettings(db.Model):
             'value': self.value,
             'description': self.description,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class Correction(db.Model):
+    """Feedback-based corrections to prevent repeated mistakes"""
+    __tablename__ = 'corrections'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)  # Short description
+    wrong_info = db.Column(db.Text, nullable=False)  # What was wrong
+    correct_info = db.Column(db.Text, nullable=False)  # What's correct
+    context = db.Column(db.Text)  # When/where this applies
+    category = db.Column(db.String(100))  # e.g., 'pricing', 'deadlines', 'requirements'
+    priority = db.Column(db.String(20), default='medium')  # high, medium, low
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    indexed = db.Column(db.Boolean, default=False)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'wrong_info': self.wrong_info,
+            'correct_info': self.correct_info,
+            'context': self.context,
+            'category': self.category,
+            'priority': self.priority,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'indexed': self.indexed
         }

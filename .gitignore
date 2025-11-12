@@ -1,0 +1,25 @@
+# Environment variables (contains secrets)
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Vector database (large files)
+chroma_db/
+
+# Node modules
+frontend/node_modules/
+
+# Build output
+frontend/build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

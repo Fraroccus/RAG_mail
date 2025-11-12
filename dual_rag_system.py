@@ -7,6 +7,7 @@ Uses two separate knowledge bases:
 
 from vector_store import VectorStore
 from local_llm import LocalLLM
+from api_llm import ApiLLM
 from language_detector import LanguageDetector
 import config
 
@@ -19,15 +20,23 @@ class DualRAGSystem:
         print("Inizializzazione Dual RAG System")
         print("=" * 60)
         
-        # Initialize two separate vector stores
+        # Initialize three separate vector stores
         self.historical_emails_store = VectorStore(
             collection_name=config.COLLECTION_HISTORICAL_EMAILS
         )
         self.enrollment_docs_store = VectorStore(
             collection_name=config.COLLECTION_ENROLLMENT_DOCS
         )
+        self.corrections_store = VectorStore(
+            collection_name=config.COLLECTION_CORRECTIONS
+        )
         
-        self.llm = LocalLLM()
+        # Initialize LLM (API or local)
+        if config.USE_API_LLM:
+            self.llm = ApiLLM()
+        else:
+            self.llm = LocalLLM()
+        
         self.language_detector = LanguageDetector()
         
         print("\n" + "=" * 60)
@@ -69,7 +78,7 @@ class DualRAGSystem:
         chunker = TextChunker()
         
         documents = [{
-            'text': doc_data['content'],
+            'content': doc_data['content'],  # Changed from 'text' to 'content'
             'metadata': {
                 'type': 'enrollment_doc',
                 'title': doc_data.get('title', 'Untitled'),
@@ -84,7 +93,31 @@ class DualRAGSystem:
         chunks = chunker.chunk_documents(documents)
         self.enrollment_docs_store.add_documents(chunks)
     
-    def generate_email_response(self, incoming_email, top_k_style=2, top_k_facts=3):
+    def index_correction(self, correction_data):
+        """
+        Index a correction to prevent repeated mistakes
+        
+        Args:
+            correction_data: Dict with 'wrong_info', 'correct_info', 'context'
+        """
+        # Create a searchable text combining wrong and correct info
+        combined_text = f"WRONG: {correction_data['wrong_info']}\n\nCORRECT: {correction_data['correct_info']}"
+        if correction_data.get('context'):
+            combined_text += f"\n\nCONTEXT: {correction_data['context']}"
+        
+        chunks = [{
+            'text': combined_text,
+            'metadata': {
+                'type': 'correction',
+                'title': correction_data.get('title', 'Correction'),
+                'category': correction_data.get('category', 'general'),
+                'priority': correction_data.get('priority', 'medium')
+            }
+        }]
+        
+        self.corrections_store.add_documents(chunks)
+    
+    def generate_email_response(self, incoming_email, top_k_style=2, top_k_facts=3, top_k_corrections=2):
         """
         Generate response to incoming email using dual RAG
         
@@ -112,13 +145,30 @@ class DualRAGSystem:
             email_body,
             top_k=top_k_style
         )
+        print(f"   → Trovate {len(historical_contexts)} email")
         
         # Retrieve from enrollment documents (for facts)
         print(f"📚 Ricerca documenti iscrizione...")
+        print(f"   → Vector store contiene: {self.enrollment_docs_store.get_collection_count()} chunks")
         factual_contexts = self.enrollment_docs_store.search(
             email_body,
             top_k=top_k_facts
         )
+        print(f"   → Trovati {len(factual_contexts)} documenti")
+        if factual_contexts:
+            for i, ctx in enumerate(factual_contexts[:2], 1):  # Show first 2
+                print(f"   → Doc {i}: distanza={ctx.get('distance', 'N/A'):.3f}, titolo={ctx['metadata'].get('title', 'N/A')}")
+        else:
+            print(f"   ⚠ Nessun documento trovato - possibile problema di ricerca")
+        
+        # Retrieve from corrections (to prevent mistakes)
+        print(f"🔧 Ricerca correzioni...")
+        print(f"   → Vector store contiene: {self.corrections_store.get_collection_count()} chunks")
+        correction_contexts = self.corrections_store.search(
+            email_body,
+            top_k=top_k_corrections
+        )
+        print(f"   → Trovate {len(correction_contexts)} correzioni")
         
         # Build prompts
         style_context = self._format_style_context(historical_contexts)
@@ -132,11 +182,21 @@ class DualRAGSystem:
             email_subject,
             style_context,
             factual_context,
-            lang_instruction
+            lang_instruction,
+            correction_contexts  # Pass corrections to prompt builder
         )
         
         print(f"\n🤖 Generazione risposta in {self.language_detector.get_language_name(detected_lang)}...")
+        print(f"📏 Lunghezza prompt: {len(prompt)} caratteri")
+        print(f"📝 Contesti recuperati: {len(historical_contexts)} storici, {len(factual_contexts)} documenti")
         response = self.llm.generate(prompt)
+        
+        # DEBUG: Show prompt details
+        print(f"\n{'='*60}")
+        print("DEBUG - PROMPT SENT TO MODEL:")
+        print(f"{'='*60}")
+        print(prompt[:2000] + "...\n[TRUNCATED]" if len(prompt) > 2000 else prompt)
+        print(f"{'='*60}\n")
         
         # Calculate confidence score
         confidence = self._calculate_confidence(historical_contexts, factual_contexts)
@@ -153,27 +213,36 @@ class DualRAGSystem:
         }
     
     def _format_style_context(self, contexts):
-        """Format historical email contexts"""
+        """Format historical email contexts - simplified"""
         if not contexts:
-            return "Nessun esempio di stile disponibile."
+            return "No previous examples available."
         
-        formatted = "ESEMPI DI EMAIL PRECEDENTI:\n\n"
-        for i, ctx in enumerate(contexts, 1):
-            formatted += f"Esempio {i}:\n{ctx['text']}\n\n"
-        return formatted
+        # Only use the BEST match to avoid confusion
+        ctx = contexts[0]
+        return f"Example response style:\n{ctx['text'][:400]}...\n"
     
     def _format_factual_context(self, contexts):
-        """Format enrollment document contexts"""
+        """Format enrollment document contexts - provide more detail"""
         if not contexts:
-            return "Nessuna informazione specifica disponibile."
+            return "No specific information available."
         
-        formatted = "INFORMAZIONI UFFICIALI SULL'ISCRIZIONE:\n\n"
-        for i, ctx in enumerate(contexts, 1):
-            title = ctx['metadata'].get('title', 'Documento')
-            formatted += f"{title}:\n{ctx['text']}\n\n"
-        return formatted
+        # Combine top 2 chunks with REDUCED size to fit in prompt
+        formatted = ""
+        for ctx in contexts[:2]:  # Reduced from 3 to 2
+            formatted += f"{ctx['text'][:300]}\n\n"  # Reduced from 500 to 300
+        return formatted.strip()
     
-    def _build_generation_prompt(self, email_body, subject, style_ctx, factual_ctx, lang_instruction):
+    def _format_corrections_context(self, contexts):
+        """Format corrections to highlight common mistakes"""
+        if not contexts:
+            return ""
+        
+        formatted = ""
+        for ctx in contexts:
+            formatted += f"- {ctx['text'][:400]}\n"
+        return formatted.strip()
+    
+    def _build_generation_prompt(self, email_body, subject, style_ctx, factual_ctx, lang_instruction, correction_contexts=None):
         """Build the complete prompt for LLM"""
         # Get custom system prompt from database if available
         from database import SystemSettings, db
@@ -191,29 +260,23 @@ class DualRAGSystem:
         else:
             base_instruction = "Sei un assistente email per ITS MAKER ACADEMY FOUNDATION."
         
+        # Build prompt with corrections to prevent mistakes
+        corrections_text = ""
+        if correction_contexts:
+            corrections_text = "\n\nIMPORTANT CORRECTIONS:\n" + self._format_corrections_context(correction_contexts)
+        
+        # Simplified, more compact prompt
         prompt = f"""{base_instruction}
 
 {lang_instruction}
 
-Devi rispondere all'email di uno studente internazionale interessato all'iscrizione.
+INFORMATION:
+{factual_ctx}{corrections_text}
 
-{style_ctx}
+STUDENT EMAIL:
+{email_body}
 
-{factual_ctx}
-
-EMAIL DELLO STUDENTE:
-Oggetto: {subject}
-Messaggio: {email_body}
-
-ISTRUZIONI:
-1. Rispondi nella stessa lingua dell'email dello studente
-2. Usa uno stile simile agli esempi forniti
-3. Includi tutte le informazioni rilevanti dalle procedure di iscrizione
-4. Sii professionale, cortese e completo
-5. Se non hai informazioni specifiche, indica allo studente di contattare l'ufficio
-
-RISPOSTA:
-"""
+RESPONSE:"""
         return prompt
     
     def _calculate_confidence(self, historical_contexts, factual_contexts):

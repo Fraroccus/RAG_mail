@@ -5,7 +5,7 @@ Interfaccia in italiano
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from database import db, Email, EmailDraft, HistoricalEmail, EnrollmentDocument, SystemSettings
+from database import db, Email, EmailDraft, HistoricalEmail, EnrollmentDocument, SystemSettings, Correction
 from email_connector import EmailConnector
 from dual_rag_system import DualRAGSystem
 from language_detector import LanguageDetector
@@ -548,18 +548,27 @@ def add_enrollment_doc():
         
         # Indicizza nel RAG
         if rag_system:
-            rag_system.index_enrollment_document({
-                'content': doc.content,
-                'title': doc.title,
-                'document_type': doc.document_type,
-                'country': doc.country,
-                'program': doc.program,
-                'language': doc.language,
-                'priority': doc.priority
-            })
-            
-            doc.indexed = True
-            db.session.commit()
+            print(f"📝 Indicizzazione documento: {doc.title}")
+            print(f"📄 Lunghezza contenuto: {len(doc.content)} caratteri")
+            try:
+                rag_system.index_enrollment_document({
+                    'content': doc.content,
+                    'title': doc.title,
+                    'document_type': doc.document_type,
+                    'country': doc.country,
+                    'program': doc.program,
+                    'language': doc.language,
+                    'priority': doc.priority
+                })
+                doc.indexed = True
+                db.session.commit()
+                print(f"✓ Documento indicizzato con successo")
+            except Exception as e:
+                print(f"❌ Errore indicizzazione: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("⚠ RAG system non disponibile")
         
         return jsonify({
             'successo': True,
@@ -568,6 +577,19 @@ def add_enrollment_doc():
     
     except Exception as e:
         db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/enrollment-docs/<int:doc_id>', methods=['GET'])
+def get_enrollment_doc_detail(doc_id):
+    """Ottieni dettagli completi documento iscrizione"""
+    try:
+        doc = EnrollmentDocument.query.get_or_404(doc_id)
+        return jsonify({
+            'successo': True,
+            'documento': doc.to_dict(include_full_content=True)
+        })
+    except Exception as e:
         return jsonify({'errore': str(e)}), 500
 
 
@@ -618,6 +640,57 @@ def delete_enrollment_doc(doc_id):
     
     except Exception as e:
         db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/enrollment-docs/reindex-all', methods=['POST'])
+def reindex_all_enrollment_docs():
+    """Re-indicizza tutti i documenti iscrizione"""
+    try:
+        if not rag_system:
+            return jsonify({'errore': 'RAG system non disponibile'}), 500
+        
+        docs = EnrollmentDocument.query.all()
+        print(f"\n🔄 Re-indicizzazione {len(docs)} documenti...")
+        
+        success_count = 0
+        for doc in docs:
+            try:
+                print(f"📝 Indicizzazione: {doc.title}")
+                print(f"   📄 Lunghezza: {len(doc.content)} caratteri")
+                
+                rag_system.index_enrollment_document({
+                    'content': doc.content,
+                    'title': doc.title,
+                    'document_type': doc.document_type,
+                    'country': doc.country,
+                    'program': doc.program,
+                    'language': doc.language,
+                    'priority': doc.priority
+                })
+                
+                doc.indexed = True
+                success_count += 1
+                print(f"   ✓ Successo")
+            except Exception as e:
+                print(f"   ❌ Errore: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        db.session.commit()
+        print(f"\n✓ Re-indicizzati {success_count}/{len(docs)} documenti")
+        
+        return jsonify({
+            'successo': True,
+            'documenti_processati': len(docs),
+            'documenti_indicizzati': success_count
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Errore re-indicizzazione: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'errore': str(e)}), 500
 
 
@@ -711,6 +784,82 @@ def update_setting(key):
             'successo': True,
             'impostazione': setting.to_dict()
         })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+# ============== ENDPOINTS CORRECTIONS ==============
+
+@app.route('/api/corrections', methods=['GET'])
+def get_corrections():
+    """Ottieni tutte le correzioni"""
+    try:
+        corrections = Correction.query.order_by(Correction.priority.desc(), Correction.created_at.desc()).all()
+        return jsonify({
+            'successo': True,
+            'correzioni': [c.to_dict() for c in corrections]
+        })
+    except Exception as e:
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/corrections', methods=['POST'])
+def add_correction():
+    """Aggiungi correzione"""
+    try:
+        data = request.json
+        
+        correction = Correction(
+            title=sanitize_text(data['titolo'], max_len=255),
+            wrong_info=sanitize_text(data['info_errata'], max_len=2000),
+            correct_info=sanitize_text(data['info_corretta'], max_len=2000),
+            context=sanitize_text(data.get('contesto', ''), max_len=2000),
+            category=data.get('categoria', 'general'),
+            priority=data.get('priorita', 'medium')
+        )
+        
+        db.session.add(correction)
+        db.session.commit()
+        
+        # Index in RAG system
+        if rag_system:
+            print(f"🔧 Indicizzazione correzione: {correction.title}")
+            try:
+                rag_system.index_correction({
+                    'title': correction.title,
+                    'wrong_info': correction.wrong_info,
+                    'correct_info': correction.correct_info,
+                    'context': correction.context,
+                    'category': correction.category,
+                    'priority': correction.priority
+                })
+                correction.indexed = True
+                db.session.commit()
+                print(f"✓ Correzione indicizzata con successo")
+            except Exception as e:
+                print(f"❌ Errore indicizzazione: {e}")
+        
+        return jsonify({
+            'successo': True,
+            'correzione': correction.to_dict()
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/corrections/<int:correction_id>', methods=['DELETE'])
+def delete_correction(correction_id):
+    """Elimina correzione"""
+    try:
+        correction = Correction.query.get_or_404(correction_id)
+        db.session.delete(correction)
+        db.session.commit()
+        
+        return jsonify({'successo': True})
     
     except Exception as e:
         db.session.rollback()
