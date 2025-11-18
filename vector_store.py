@@ -36,12 +36,29 @@ class VectorStore:
         
         # Load or create index
         if os.path.exists(self.index_path) and os.path.exists(self.metadata_path):
-            self.index = faiss.read_index(self.index_path)
-            with open(self.metadata_path, 'rb') as f:
-                data = pickle.load(f)
-                self.documents = data['documents']
-                self.metadatas = data['metadatas']
-            print(f"Loaded existing index '{self.collection_name}' with {len(self.documents)} documents")
+            try:
+                self.index = faiss.read_index(self.index_path)
+                with open(self.metadata_path, 'rb') as f:
+                    data = pickle.load(f)
+                    self.documents = data['documents']
+                    self.metadatas = data['metadatas']
+                print(f"Loaded existing index '{self.collection_name}' with {len(self.documents)} documents")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not load index '{self.collection_name}': {e}")
+                print(f"🔧 Creating new index instead...")
+                # If loading fails, create new index
+                self.index = faiss.IndexFlatL2(self.dimension)
+                self.documents = []
+                self.metadatas = []
+                # Remove corrupted files
+                try:
+                    if os.path.exists(self.index_path):
+                        os.remove(self.index_path)
+                    if os.path.exists(self.metadata_path):
+                        os.remove(self.metadata_path)
+                except:
+                    pass
+                print(f"Created new FAISS index '{self.collection_name}'")
         else:
             self.index = faiss.IndexFlatL2(self.dimension)
             self.documents = []
@@ -159,10 +176,14 @@ class VectorStore:
     
     def _save_index(self):
         """Save FAISS index and metadata to disk"""
-        faiss.write_index(self.index, self.index_path)
-        with open(self.metadata_path, 'wb') as f:
-            pickle.dump({
-                'documents': self.documents,
-                'metadatas': self.metadatas
-            }, f)
-        print(f"✓ Index saved to {self.index_path}")
+        try:
+            faiss.write_index(self.index, self.index_path)
+            with open(self.metadata_path, 'wb') as f:
+                pickle.dump({
+                    'documents': self.documents,
+                    'metadatas': self.metadatas
+                }, f)
+            print(f"✓ Index saved to {self.index_path}")
+        except Exception as e:
+            print(f"❌ Error saving index to {self.index_path}: {e}")
+            # Don't raise - allow operation to continue even if save fails

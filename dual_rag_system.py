@@ -15,20 +15,32 @@ import config
 class DualRAGSystem:
     """RAG system with dual knowledge bases"""
     
-    def __init__(self):
+    def __init__(self, workspace_id=None):
         print("=" * 60)
-        print("Inizializzazione Dual RAG System")
+        print(f"Inizializzazione Dual RAG System (Workspace: {workspace_id or 'Global'})")
         print("=" * 60)
+        
+        self.workspace_id = workspace_id
+        
+        # Create workspace-specific collection names
+        if workspace_id:
+            historical_collection = f"{config.COLLECTION_HISTORICAL_EMAILS}_ws{workspace_id}"
+            enrollment_collection = f"{config.COLLECTION_ENROLLMENT_DOCS}_ws{workspace_id}"
+            corrections_collection = f"{config.COLLECTION_CORRECTIONS}_ws{workspace_id}"
+        else:
+            historical_collection = config.COLLECTION_HISTORICAL_EMAILS
+            enrollment_collection = config.COLLECTION_ENROLLMENT_DOCS
+            corrections_collection = config.COLLECTION_CORRECTIONS
         
         # Initialize three separate vector stores
         self.historical_emails_store = VectorStore(
-            collection_name=config.COLLECTION_HISTORICAL_EMAILS
+            collection_name=historical_collection
         )
         self.enrollment_docs_store = VectorStore(
-            collection_name=config.COLLECTION_ENROLLMENT_DOCS
+            collection_name=enrollment_collection
         )
         self.corrections_store = VectorStore(
-            collection_name=config.COLLECTION_CORRECTIONS
+            collection_name=corrections_collection
         )
         
         # Initialize LLM (API or local)
@@ -248,7 +260,11 @@ class DualRAGSystem:
         from database import SystemSettings, db
         custom_prompt = None
         try:
-            setting = SystemSettings.query.filter_by(key='system_prompt').first()
+            if self.workspace_id:
+                setting = SystemSettings.query.filter_by(key='system_prompt', workspace_id=self.workspace_id).first()
+            else:
+                setting = SystemSettings.query.filter_by(key='system_prompt', workspace_id=None).first()
+            
             if setting and setting.value:
                 custom_prompt = setting.value
         except:

@@ -9,6 +9,37 @@ import json
 db = SQLAlchemy()
 
 
+class Workspace(db.Model):
+    """Workspace for managing different RAG models"""
+    __tablename__ = 'workspaces'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(60), nullable=False)
+    emoji = db.Column(db.String(10), default='📧')
+    color = db.Column(db.String(7), default='#1976d2')  # Hex color
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    historical_emails = db.relationship('HistoricalEmail', backref='workspace', lazy=True, cascade='all, delete-orphan')
+    enrollment_documents = db.relationship('EnrollmentDocument', backref='workspace', lazy=True, cascade='all, delete-orphan')
+    corrections = db.relationship('Correction', backref='workspace', lazy=True, cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'emoji': self.emoji,
+            'color': self.color,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_modified': self.last_modified.isoformat() if self.last_modified else None,
+            'is_active': self.is_active,
+            'document_count': len(self.enrollment_documents),
+            'email_count': len(self.historical_emails)
+        }
+
+
 class Email(db.Model):
     """Incoming emails"""
     __tablename__ = 'emails'
@@ -109,6 +140,7 @@ class HistoricalEmail(db.Model):
     __tablename__ = 'historical_emails'
     
     id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=False, default=1)
     subject = db.Column(db.String(500))
     student_query = db.Column(db.Text, nullable=False)
     response = db.Column(db.Text, nullable=False)
@@ -141,6 +173,7 @@ class EnrollmentDocument(db.Model):
     __tablename__ = 'enrollment_documents'
     
     id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=False, default=1)
     title = db.Column(db.String(255), nullable=False)
     filename = db.Column(db.String(255))
     content = db.Column(db.Text, nullable=False)
@@ -180,7 +213,8 @@ class SystemSettings(db.Model):
     __tablename__ = 'system_settings'
     
     id = db.Column(db.Integer, primary_key=True)
-    key = db.Column(db.String(100), unique=True, nullable=False)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=True)  # NULL = global
+    key = db.Column(db.String(100), nullable=False)
     value = db.Column(db.Text)
     description = db.Column(db.String(500))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -200,6 +234,7 @@ class Correction(db.Model):
     __tablename__ = 'corrections'
     
     id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=False, default=1)
     title = db.Column(db.String(255), nullable=False)  # Short description
     wrong_info = db.Column(db.Text, nullable=False)  # What was wrong
     correct_info = db.Column(db.Text, nullable=False)  # What's correct

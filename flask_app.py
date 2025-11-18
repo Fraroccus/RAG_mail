@@ -5,7 +5,7 @@ Interfaccia in italiano
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from database import db, Email, EmailDraft, HistoricalEmail, EnrollmentDocument, SystemSettings, Correction
+from database import db, Email, EmailDraft, HistoricalEmail, EnrollmentDocument, SystemSettings, Correction, Workspace
 from email_connector import EmailConnector
 from dual_rag_system import DualRAGSystem
 from language_detector import LanguageDetector
@@ -38,13 +38,109 @@ def sanitize_text(text, max_len=None):
 
 # Initialize components
 email_connector = None
-rag_system = None
+rag_systems = {}  # Cache of workspace-specific RAG systems
 language_detector = LanguageDetector()
 
 
+def cleanup_workspace_vector_stores(workspace_id):
+    """Delete FAISS index files for a workspace"""
+    import glob
+    
+    # Get all collection names for this workspace
+    collection_patterns = [
+        f"{config.COLLECTION_HISTORICAL_EMAILS}_ws{workspace_id}",
+        f"{config.COLLECTION_ENROLLMENT_DOCS}_ws{workspace_id}",
+        f"{config.COLLECTION_CORRECTIONS}_ws{workspace_id}"
+    ]
+    
+    deleted_count = 0
+    for pattern in collection_patterns:
+        # Delete .index and .pkl files
+        index_path = os.path.join(config.CHROMA_DB_DIR, f"{pattern}.index")
+        metadata_path = os.path.join(config.CHROMA_DB_DIR, f"{pattern}.pkl")
+        
+        if os.path.exists(index_path):
+            os.remove(index_path)
+            deleted_count += 1
+            print(f"  ✓ Rimosso: {pattern}.index")
+        
+        if os.path.exists(metadata_path):
+            os.remove(metadata_path)
+            deleted_count += 1
+            print(f"  ✓ Rimosso: {pattern}.pkl")
+    
+    return deleted_count
+
+
+def duplicate_workspace_vector_stores(source_id, target_id):
+    """Copy FAISS index files from source workspace to target workspace"""
+    import shutil
+    
+    collection_types = [
+        config.COLLECTION_HISTORICAL_EMAILS,
+        config.COLLECTION_ENROLLMENT_DOCS,
+        config.COLLECTION_CORRECTIONS
+    ]
+    
+    copied_count = 0
+    for collection_type in collection_types:
+        source_pattern = f"{collection_type}_ws{source_id}"
+        target_pattern = f"{collection_type}_ws{target_id}"
+        
+        # Copy .index file
+        source_index = os.path.join(config.CHROMA_DB_DIR, f"{source_pattern}.index")
+        target_index = os.path.join(config.CHROMA_DB_DIR, f"{target_pattern}.index")
+        
+        if os.path.exists(source_index):
+            shutil.copy2(source_index, target_index)
+            copied_count += 1
+            print(f"  ✓ Copiato: {source_pattern}.index -> {target_pattern}.index")
+        
+        # Copy .pkl file
+        source_pkl = os.path.join(config.CHROMA_DB_DIR, f"{source_pattern}.pkl")
+        target_pkl = os.path.join(config.CHROMA_DB_DIR, f"{target_pattern}.pkl")
+        
+        if os.path.exists(source_pkl):
+            shutil.copy2(source_pkl, target_pkl)
+            copied_count += 1
+            print(f"  ✓ Copiato: {source_pattern}.pkl -> {target_pattern}.pkl")
+    
+    return copied_count
+
+
+def get_rag_system(workspace_id):
+    """Get or create RAG system for workspace"""
+    # Validate workspace exists
+    workspace = Workspace.query.get(workspace_id)
+    if not workspace:
+        raise ValueError(f"Workspace {workspace_id} does not exist")
+    
+    if workspace_id not in rag_systems:
+        print(f"🔄 Inizializzazione RAG system per workspace {workspace_id}...")
+        try:
+            rag_systems[workspace_id] = DualRAGSystem(workspace_id=workspace_id)
+        except Exception as e:
+            # If RAG initialization fails (corrupted indexes), try to recover
+            print(f"⚠️ Errore inizializzazione RAG system: {e}")
+            print(f"🔧 Tentativo di recupero eliminando vector stores corrotti...")
+            
+            # Delete corrupted vector store files
+            cleanup_workspace_vector_stores(workspace_id)
+            
+            # Try again with fresh indexes
+            try:
+                rag_systems[workspace_id] = DualRAGSystem(workspace_id=workspace_id)
+                print(f"✓ RAG system ricreato con successo")
+            except Exception as retry_error:
+                print(f"❌ Impossibile inizializzare RAG system: {retry_error}")
+                raise ValueError(f"Cannot initialize RAG system for workspace {workspace_id}: {retry_error}")
+    
+    return rag_systems[workspace_id]
+
+
 def init_components():
-    """Initialize email connector and RAG system"""
-    global email_connector, rag_system
+    """Initialize email connector"""
+    global email_connector
     
     try:
         if config.MS_CLIENT_ID and config.MS_CLIENT_SECRET:
@@ -53,8 +149,7 @@ def init_components():
         else:
             print("⚠ Configurazione Microsoft Graph mancante")
         
-        rag_system = DualRAGSystem()
-        print("✓ RAG system inizializzato")
+        print("✓ RAG system manager inizializzato")
     except Exception as e:
         print(f"⚠ Errore inizializzazione: {e}")
 
@@ -164,9 +259,12 @@ def generate_manual_response():
     """Genera risposta da email incollata manualmente"""
     try:
         data = request.json
+        workspace_id = data.get('workspace_id')
         
-        if not rag_system:
-            return jsonify({'errore': 'RAG system non inizializzato'}), 500
+        if not workspace_id:
+            return jsonify({'errore': 'workspace_id richiesto'}), 400
+        
+        rag_system = get_rag_system(workspace_id)
         
         # Prepara dati email
         incoming_email = {
@@ -200,13 +298,15 @@ def generate_draft(email_id):
     """Genera bozza risposta per una email"""
     try:
         email = Email.query.get_or_404(email_id)
-        
-        if not rag_system:
-            return jsonify({'errore': 'RAG system non inizializzato'}), 500
+        data = request.json or {}
+        workspace_id = data.get('workspace_id', 1)  # Default to workspace 1
         
         # Controlla se bozza già esiste
         if email.draft:
             return jsonify({'errore': 'Bozza già esistente'}), 400
+        
+        # Get workspace-specific RAG system
+        rag_system = get_rag_system(workspace_id)
         
         # Prepara dati email per RAG
         incoming_email = {
@@ -401,6 +501,7 @@ def submit_feedback(draft_id):
             
             if not existing:
                 historical = HistoricalEmail(
+                    workspace_id=1,  # Default workspace for now - TODO: associate emails with workspaces
                     subject=email.subject,
                     student_query=email.body,
                     response=draft.edited_response or draft.generated_response,
@@ -412,16 +513,7 @@ def submit_feedback(draft_id):
                 db.session.add(historical)
                 db.session.commit()
                 
-                # Indicizza automaticamente
-                if rag_system:
-                    rag_system.index_historical_email({
-                        'query': historical.student_query,
-                        'response': historical.response,
-                        'language': historical.language,
-                        'tags': historical.tags
-                    })
-                    historical.indexed = True
-                    db.session.commit()
+                # TODO: Index in workspace-specific RAG when emails have workspace_id
         
         return jsonify({
             'successo': True,
@@ -439,7 +531,13 @@ def submit_feedback(draft_id):
 def get_historical_emails():
     """Ottieni lista email storiche"""
     try:
-        emails = HistoricalEmail.query.order_by(HistoricalEmail.created_at.desc()).all()
+        workspace_id = request.args.get('workspace_id', type=int)
+        query = HistoricalEmail.query
+        
+        if workspace_id:
+            query = query.filter_by(workspace_id=workspace_id)
+        
+        emails = query.order_by(HistoricalEmail.created_at.desc()).all()
         
         return jsonify({
             'successo': True,
@@ -455,8 +553,10 @@ def add_historical_email():
     """Aggiungi email storica"""
     try:
         data = request.json
+        workspace_id = data.get('workspace_id', 1)  # Default to workspace 1
         
         email = HistoricalEmail(
+            workspace_id=workspace_id,
             subject=sanitize_text(data.get('oggetto', ''), max_len=500),
             student_query=sanitize_text(data['domanda_studente'], max_len=20000),
             response=sanitize_text(data['risposta'], max_len=20000),
@@ -471,18 +571,18 @@ def add_historical_email():
         db.session.commit()
         
         # Indicizza nel RAG
-        if rag_system:
-            rag_system.index_historical_email({
-                'query': email.student_query,
-                'response': email.response,
-                'language': email.language,
-                'country': email.country,
-                'program': email.program,
-                'tags': email.tags
-            })
-            
-            email.indexed = True
-            db.session.commit()
+        rag_system = get_rag_system(workspace_id)
+        rag_system.index_historical_email({
+            'query': email.student_query,
+            'response': email.response,
+            'language': email.language,
+            'country': email.country,
+            'program': email.program,
+            'tags': email.tags
+        })
+        
+        email.indexed = True
+        db.session.commit()
         
         return jsonify({
             'successo': True,
@@ -515,7 +615,13 @@ def delete_historical_email(email_id):
 def get_enrollment_docs():
     """Ottieni lista documenti iscrizione"""
     try:
-        docs = EnrollmentDocument.query.order_by(EnrollmentDocument.last_updated.desc()).all()
+        workspace_id = request.args.get('workspace_id', type=int)
+        query = EnrollmentDocument.query
+        
+        if workspace_id:
+            query = query.filter_by(workspace_id=workspace_id)
+        
+        docs = query.order_by(EnrollmentDocument.last_updated.desc()).all()
         
         return jsonify({
             'successo': True,
@@ -531,8 +637,10 @@ def add_enrollment_doc():
     """Aggiungi documento iscrizione"""
     try:
         data = request.json
+        workspace_id = data.get('workspace_id', 1)  # Default to workspace 1
         
         doc = EnrollmentDocument(
+            workspace_id=workspace_id,
             title=sanitize_text(data['titolo'], max_len=255),
             filename=sanitize_text(data.get('nome_file', ''), max_len=255),
             content=sanitize_text(data['contenuto'], max_len=200000),
@@ -547,28 +655,26 @@ def add_enrollment_doc():
         db.session.commit()
         
         # Indicizza nel RAG
-        if rag_system:
-            print(f"📝 Indicizzazione documento: {doc.title}")
-            print(f"📄 Lunghezza contenuto: {len(doc.content)} caratteri")
-            try:
-                rag_system.index_enrollment_document({
-                    'content': doc.content,
-                    'title': doc.title,
-                    'document_type': doc.document_type,
-                    'country': doc.country,
-                    'program': doc.program,
-                    'language': doc.language,
-                    'priority': doc.priority
-                })
-                doc.indexed = True
-                db.session.commit()
-                print(f"✓ Documento indicizzato con successo")
-            except Exception as e:
-                print(f"❌ Errore indicizzazione: {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            print("⚠ RAG system non disponibile")
+        print(f"📝 Indicizzazione documento: {doc.title}")
+        print(f"📄 Lunghezza contenuto: {len(doc.content)} caratteri")
+        try:
+            rag_system = get_rag_system(workspace_id)
+            rag_system.index_enrollment_document({
+                'content': doc.content,
+                'title': doc.title,
+                'document_type': doc.document_type,
+                'country': doc.country,
+                'program': doc.program,
+                'language': doc.language,
+                'priority': doc.priority
+            })
+            doc.indexed = True
+            db.session.commit()
+            print(f"✓ Documento indicizzato con successo")
+        except Exception as e:
+            print(f"❌ Errore indicizzazione: {e}")
+            import traceback
+            traceback.print_exc()
         
         return jsonify({
             'successo': True,
@@ -647,11 +753,14 @@ def delete_enrollment_doc(doc_id):
 def reindex_all_enrollment_docs():
     """Re-indicizza tutti i documenti iscrizione"""
     try:
-        if not rag_system:
-            return jsonify({'errore': 'RAG system non disponibile'}), 500
+        workspace_id = request.args.get('workspace_id', type=int)
         
-        docs = EnrollmentDocument.query.all()
-        print(f"\n🔄 Re-indicizzazione {len(docs)} documenti...")
+        if not workspace_id:
+            return jsonify({'errore': 'workspace_id richiesto'}), 400
+        
+        rag_system = get_rag_system(workspace_id)
+        docs = EnrollmentDocument.query.filter_by(workspace_id=workspace_id).all()
+        print(f"\n🔄 Re-indicizzazione {len(docs)} documenti per workspace {workspace_id}...")
         
         success_count = 0
         for doc in docs:
@@ -700,22 +809,31 @@ def reindex_all_enrollment_docs():
 def get_stats():
     """Ottieni statistiche sistema"""
     try:
+        workspace_id = request.args.get('workspace_id', type=int)
+        
         stats = {
             'email_totali': Email.query.count(),
             'bozze_pending': EmailDraft.query.filter_by(status='pending').count(),
             'bozze_approvate': EmailDraft.query.filter_by(status='approved').count(),
-            'email_inviate': EmailDraft.query.filter_by(status='sent').count(),
-            'email_storiche': HistoricalEmail.query.count(),
-            'documenti_iscrizione': EnrollmentDocument.query.count()
+            'email_inviate': EmailDraft.query.filter_by(status='sent').count()
         }
         
-        if rag_system:
+        # Filter by workspace
+        if workspace_id:
+            stats['email_storiche'] = HistoricalEmail.query.filter_by(workspace_id=workspace_id).count()
+            stats['documenti_iscrizione'] = EnrollmentDocument.query.filter_by(workspace_id=workspace_id).count()
+        else:
+            stats['email_storiche'] = HistoricalEmail.query.count()
+            stats['documenti_iscrizione'] = EnrollmentDocument.query.count()
+        
+        # RAG stats are workspace-specific if workspace_id provided
+        if workspace_id:
             try:
+                rag_system = get_rag_system(workspace_id)
                 rag_stats = rag_system.get_stats()
                 stats.update(rag_stats)
             except Exception as e:
                 print(f"⚠ Errore caricamento stats RAG: {e}")
-                # Continue without RAG stats
         
         return jsonify(stats)
     
@@ -746,7 +864,13 @@ def get_settings():
 def get_setting(key):
     """Ottieni singola impostazione"""
     try:
-        setting = SystemSettings.query.filter_by(key=key).first()
+        workspace_id = request.args.get('workspace_id', type=int)
+        
+        if workspace_id:
+            setting = SystemSettings.query.filter_by(key=key, workspace_id=workspace_id).first()
+        else:
+            setting = SystemSettings.query.filter_by(key=key, workspace_id=None).first()
+        
         if not setting:
             return jsonify({'errore': 'Impostazione non trovata'}), 404
         
@@ -761,12 +885,18 @@ def update_setting(key):
     """Aggiorna impostazione"""
     try:
         data = request.json
+        workspace_id = data.get('workspace_id')
         
-        setting = SystemSettings.query.filter_by(key=key).first()
+        if workspace_id:
+            setting = SystemSettings.query.filter_by(key=key, workspace_id=workspace_id).first()
+        else:
+            setting = SystemSettings.query.filter_by(key=key, workspace_id=None).first()
+        
         if not setting:
             # Crea nuova impostazione
             setting = SystemSettings(
                 key=key,
+                workspace_id=workspace_id,
                 value=data.get('value', ''),
                 description=data.get('description', '')
             )
@@ -796,7 +926,13 @@ def update_setting(key):
 def get_corrections():
     """Ottieni tutte le correzioni"""
     try:
-        corrections = Correction.query.order_by(Correction.priority.desc(), Correction.created_at.desc()).all()
+        workspace_id = request.args.get('workspace_id', type=int)
+        query = Correction.query
+        
+        if workspace_id:
+            query = query.filter_by(workspace_id=workspace_id)
+        
+        corrections = query.order_by(Correction.priority.desc(), Correction.created_at.desc()).all()
         return jsonify({
             'successo': True,
             'correzioni': [c.to_dict() for c in corrections]
@@ -810,8 +946,10 @@ def add_correction():
     """Aggiungi correzione"""
     try:
         data = request.json
+        workspace_id = data.get('workspace_id', 1)  # Default to workspace 1
         
         correction = Correction(
+            workspace_id=workspace_id,
             title=sanitize_text(data['titolo'], max_len=255),
             wrong_info=sanitize_text(data['info_errata'], max_len=2000),
             correct_info=sanitize_text(data['info_corretta'], max_len=2000),
@@ -824,22 +962,22 @@ def add_correction():
         db.session.commit()
         
         # Index in RAG system
-        if rag_system:
-            print(f"🔧 Indicizzazione correzione: {correction.title}")
-            try:
-                rag_system.index_correction({
-                    'title': correction.title,
-                    'wrong_info': correction.wrong_info,
-                    'correct_info': correction.correct_info,
-                    'context': correction.context,
-                    'category': correction.category,
-                    'priority': correction.priority
-                })
-                correction.indexed = True
-                db.session.commit()
-                print(f"✓ Correzione indicizzata con successo")
-            except Exception as e:
-                print(f"❌ Errore indicizzazione: {e}")
+        print(f"🔧 Indicizzazione correzione: {correction.title}")
+        try:
+            rag_system = get_rag_system(workspace_id)
+            rag_system.index_correction({
+                'title': correction.title,
+                'wrong_info': correction.wrong_info,
+                'correct_info': correction.correct_info,
+                'context': correction.context,
+                'category': correction.category,
+                'priority': correction.priority
+            })
+            correction.indexed = True
+            db.session.commit()
+            print(f"✓ Correzione indicizzata con successo")
+        except Exception as e:
+            print(f"❌ Errore indicizzazione: {e}")
         
         return jsonify({
             'successo': True,
@@ -860,6 +998,212 @@ def delete_correction(correction_id):
         db.session.commit()
         
         return jsonify({'successo': True})
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+# ============== ENDPOINTS WORKSPACES ==============
+
+@app.route('/api/workspaces', methods=['GET'])
+def get_workspaces():
+    """Ottieni tutti i workspaces"""
+    try:
+        workspaces = Workspace.query.order_by(Workspace.last_modified.desc()).all()
+        return jsonify({
+            'successo': True,
+            'workspaces': [w.to_dict() for w in workspaces]
+        })
+    except Exception as e:
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/workspaces', methods=['POST'])
+def create_workspace():
+    """Crea nuovo workspace"""
+    try:
+        data = request.json
+        
+        workspace = Workspace(
+            title=sanitize_text(data['titolo'], max_len=60),
+            emoji=sanitize_text(data.get('emoji', '📧'), max_len=10),
+            color=sanitize_text(data.get('colore', '#1976d2'), max_len=7),
+            is_active=True
+        )
+        
+        db.session.add(workspace)
+        db.session.commit()
+        
+        return jsonify({
+            'successo': True,
+            'workspace': workspace.to_dict()
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/workspaces/<int:workspace_id>', methods=['GET'])
+def get_workspace(workspace_id):
+    """Ottieni dettagli workspace"""
+    try:
+        workspace = Workspace.query.get_or_404(workspace_id)
+        return jsonify(workspace.to_dict())
+    except Exception as e:
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/workspaces/<int:workspace_id>', methods=['PUT'])
+def update_workspace(workspace_id):
+    """Aggiorna workspace"""
+    try:
+        workspace = Workspace.query.get_or_404(workspace_id)
+        data = request.json
+        
+        if 'titolo' in data:
+            workspace.title = sanitize_text(data['titolo'], max_len=60)
+        if 'emoji' in data:
+            workspace.emoji = sanitize_text(data['emoji'], max_len=10)
+        if 'colore' in data:
+            workspace.color = sanitize_text(data['colore'], max_len=7)
+        if 'is_active' in data:
+            workspace.is_active = data['is_active']
+        
+        workspace.last_modified = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'successo': True,
+            'workspace': workspace.to_dict()
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/workspaces/<int:workspace_id>', methods=['DELETE'])
+def delete_workspace(workspace_id):
+    """Elimina workspace (con tutti i dati associati)"""
+    try:
+        # Non permettere eliminazione workspace default
+        if workspace_id == 1:
+            return jsonify({'errore': 'Impossibile eliminare il workspace predefinito'}), 400
+        
+        workspace = Workspace.query.get_or_404(workspace_id)
+        
+        # 1. Clean up RAG system from memory cache
+        if workspace_id in rag_systems:
+            del rag_systems[workspace_id]
+            print(f"🗑️ RAG system per workspace {workspace_id} rimosso dalla cache")
+        
+        # 2. Delete FAISS vector store files from disk
+        print(f"🗑️ Pulizia vector stores per workspace {workspace_id}...")
+        deleted_files = cleanup_workspace_vector_stores(workspace_id)
+        print(f"✓ Rimossi {deleted_files} file vector store")
+        
+        # 3. Delete database records (cascade will handle related data)
+        db.session.delete(workspace)
+        db.session.commit()
+        
+        return jsonify({
+            'successo': True,
+            'file_rimossi': deleted_files
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/workspaces/<int:workspace_id>/duplicate', methods=['POST'])
+def duplicate_workspace(workspace_id):
+    """Duplica un workspace con tutti i suoi dati"""
+    try:
+        original = Workspace.query.get_or_404(workspace_id)
+        
+        # Crea nuovo workspace
+        duplicate = Workspace(
+            title=f"{original.title} (Copia)",
+            emoji=original.emoji,
+            color=original.color,
+            is_active=True
+        )
+        db.session.add(duplicate)
+        db.session.flush()  # Get ID before copying related data
+        
+        # Copia historical emails
+        for email in original.historical_emails:
+            new_email = HistoricalEmail(
+                workspace_id=duplicate.id,
+                subject=email.subject,
+                student_query=email.student_query,
+                response=email.response,
+                language=email.language,
+                tags=email.tags,
+                country=email.country,
+                program=email.program,
+                date_sent=email.date_sent
+            )
+            db.session.add(new_email)
+        
+        # Copia enrollment documents
+        for doc in original.enrollment_documents:
+            new_doc = EnrollmentDocument(
+                workspace_id=duplicate.id,
+                title=doc.title,
+                filename=doc.filename,
+                content=doc.content,
+                document_type=doc.document_type,
+                country=doc.country,
+                program=doc.program,
+                language=doc.language,
+                priority=doc.priority
+            )
+            db.session.add(new_doc)
+        
+        # Copia corrections
+        for corr in original.corrections:
+            new_corr = Correction(
+                workspace_id=duplicate.id,
+                title=corr.title,
+                wrong_info=corr.wrong_info,
+                correct_info=corr.correct_info,
+                context=corr.context,
+                category=corr.category,
+                priority=corr.priority
+            )
+            db.session.add(new_corr)
+        
+        # Copia system settings (system prompt)
+        original_settings = SystemSettings.query.filter_by(
+            key='system_prompt',
+            workspace_id=workspace_id
+        ).first()
+        
+        if original_settings:
+            new_settings = SystemSettings(
+                key='system_prompt',
+                workspace_id=duplicate.id,
+                value=original_settings.value,
+                description=original_settings.description
+            )
+            db.session.add(new_settings)
+        
+        db.session.commit()
+        
+        # Copy FAISS vector stores
+        print(f"📋 Copia vector stores da workspace {workspace_id} a {duplicate.id}...")
+        copied_files = duplicate_workspace_vector_stores(workspace_id, duplicate.id)
+        print(f"✓ Copiati {copied_files} file vector store")
+        
+        return jsonify({
+            'successo': True,
+            'workspace': duplicate.to_dict(),
+            'file_copiati': copied_files
+        })
     
     except Exception as e:
         db.session.rollback()
