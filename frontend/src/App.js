@@ -94,9 +94,17 @@ function App() {
     }
   };
 
-  const handlePasswordChanged = () => {
+  const handlePasswordChanged = async () => {
     setChangePasswordOpen(false);
     setMustChangePassword(false);
+    
+    // Refresh user data to get updated must_change_password flag
+    try {
+      const response = await axios.get('/api/auth/me');
+      setCurrentUser(response.data);
+    } catch (err) {
+      console.error('Error refreshing user data:', err);
+    }
   };
 
   useEffect(() => {
