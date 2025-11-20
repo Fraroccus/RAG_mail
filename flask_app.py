@@ -1505,6 +1505,17 @@ def duplicate_workspace(workspace_id):
         return jsonify({'errore': str(e)}), 500
 
 
+# ============== HEALTH CHECK ==============
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for deployment platforms"""
+    return jsonify({
+        'status': 'healthy',
+        'database': 'connected' if db.engine else 'disconnected'
+    }), 200
+
+
 # ============== INIZIALIZZAZIONE ==============
 
 with app.app_context():

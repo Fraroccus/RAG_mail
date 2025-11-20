@@ -11,6 +11,19 @@ import config
 import os
 import pickle
 
+# Global model cache to avoid reloading
+_embedding_model_cache = None
+
+def get_embedding_model():
+    """Get or create the embedding model (singleton pattern)"""
+    global _embedding_model_cache
+    if _embedding_model_cache is None:
+        print(f"Loading embedding model: {config.EMBEDDING_MODEL}")
+        _embedding_model_cache = SentenceTransformer(config.EMBEDDING_MODEL)
+        _embedding_model_cache.to(config.DEVICE)
+        print("✓ Embedding model loaded")
+    return _embedding_model_cache
+
 
 class VectorStore:
     """Manages vector embeddings and similarity search using FAISS"""
@@ -21,13 +34,12 @@ class VectorStore:
         # Set collection name
         self.collection_name = collection_name or config.COLLECTION_NAME
         
-        # Initialize embedding model
-        print(f"Loading embedding model: {config.EMBEDDING_MODEL}")
-        self.embedding_model = SentenceTransformer(config.EMBEDDING_MODEL)
-        self.embedding_model.to(config.DEVICE)
+        # Defer model loading until first use
+        self._embedding_model = None
         
-        # Get embedding dimension
-        self.dimension = self.embedding_model.get_sentence_embedding_dimension()
+        # Get embedding dimension (requires model)
+        model = get_embedding_model()
+        self.dimension = model.get_sentence_embedding_dimension()
         
         # Initialize FAISS index
         os.makedirs(config.CHROMA_DB_DIR, exist_ok=True)
@@ -64,6 +76,11 @@ class VectorStore:
             self.documents = []
             self.metadatas = []
             print(f"Created new FAISS index '{self.collection_name}'")
+    
+    @property
+    def embedding_model(self):
+        """Lazy load embedding model on first access"""
+        return get_embedding_model()
     
     def embed_text(self, text: str) -> List[float]:
         """Generate embedding for a single text"""
