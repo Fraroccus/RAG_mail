@@ -4,9 +4,50 @@ Database models for email RAG system
 
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 import json
 
 db = SQLAlchemy()
+
+
+class User(db.Model):
+    """User accounts for authentication"""
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    full_name = db.Column(db.String(255))
+    is_admin = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    must_change_password = db.Column(db.Boolean, default=True)  # Force password change on first login
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    
+    # Relationships
+    workspaces = db.relationship('Workspace', backref='owner', lazy=True)
+    
+    def set_password(self, password):
+        """Hash and set user password"""
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Check if provided password matches hash"""
+        return check_password_hash(self.password_hash, password)
+    
+    def to_dict(self, include_sensitive=False):
+        data = {
+            'id': self.id,
+            'email': self.email,
+            'full_name': self.full_name,
+            'is_admin': self.is_admin,
+            'is_active': self.is_active,
+            'must_change_password': self.must_change_password,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_login': self.last_login.isoformat() if self.last_login else None,
+            'workspace_count': len(self.workspaces)
+        }
+        return data
 
 
 class Workspace(db.Model):
@@ -14,6 +55,7 @@ class Workspace(db.Model):
     __tablename__ = 'workspaces'
     
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, default=1)
     title = db.Column(db.String(60), nullable=False)
     emoji = db.Column(db.String(10), default='📧')
     color = db.Column(db.String(7), default='#1976d2')  # Hex color

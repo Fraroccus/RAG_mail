@@ -14,7 +14,9 @@ import {
   Toolbar,
   Typography,
   Container,
-  Button
+  Button,
+  Menu,
+  MenuItem
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -24,8 +26,11 @@ import {
   Description as DescriptionIcon,
   Dashboard as DashboardIcon,
   Settings as SettingsIcon,
-  Home as HomeIcon
+  Home as HomeIcon,
+  AccountCircle as AccountCircleIcon,
+  AdminPanelSettings as AdminIcon
 } from '@mui/icons-material';
+import axios from 'axios';
 
 import WorkspaceDashboard from './components/WorkspaceDashboard';
 import Dashboard from './components/Dashboard';
@@ -34,6 +39,9 @@ import EmailDetail from './components/EmailDetail';
 import HistoricalEmails from './components/HistoricalEmails';
 import EnrollmentDocs from './components/EnrollmentDocs';
 import Settings from './components/Settings';
+import Login from './components/Login';
+import ChangePasswordDialog from './components/ChangePasswordDialog';
+import AdminPanel from './components/AdminPanel';
 
 const drawerWidth = 240;
 
@@ -41,6 +49,52 @@ function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [currentWorkspace, setCurrentWorkspace] = useState(null);
   const [workspaceInfo, setWorkspaceInfo] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [accountMenuAnchor, setAccountMenuAnchor] = useState(null);
+
+  // Check authentication on mount
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const response = await axios.get('/api/auth/me');
+      setCurrentUser(response.data);
+    } catch (err) {
+      // Not logged in
+      setCurrentUser(null);
+    } finally {
+      setAuthChecked(true);
+    }
+  };
+
+  const handleLoginSuccess = (user, mustChange) => {
+    setCurrentUser(user);
+    setMustChangePassword(mustChange);
+    if (mustChange) {
+      setChangePasswordOpen(true);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await axios.post('/api/auth/logout');
+      setCurrentUser(null);
+      setCurrentWorkspace(null);
+      setAccountMenuAnchor(null);
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
+  const handlePasswordChanged = () => {
+    setChangePasswordOpen(false);
+    setMustChangePassword(false);
+  };
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -79,6 +133,11 @@ function App() {
     { text: 'Impostazioni', icon: <SettingsIcon />, path: '/settings' }
   ];
 
+  // Add admin panel for admins
+  if (currentUser?.is_admin) {
+    menuItems.push({ text: 'Admin Panel', icon: <AdminIcon />, path: '/admin' });
+  }
+
   const drawer = (
     <div>
       <Toolbar>
@@ -99,6 +158,20 @@ function App() {
     </div>
   );
 
+  // Show login if not authenticated
+  if (!authChecked) {
+    return <div>Loading...</div>;
+  }
+
+  if (!currentUser) {
+    return (
+      <>
+        <CssBaseline />
+        <Login onLoginSuccess={handleLoginSuccess} />
+      </>
+    );
+  }
+
   // Show workspace dashboard if no workspace selected
   if (!currentWorkspace) {
     return (
@@ -107,16 +180,45 @@ function App() {
           <CssBaseline />
           <AppBar position="fixed">
             <Toolbar>
-              <Typography variant="h6" noWrap component="div">
+              <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
                 ITS MAKER ACADEMY - Sistema Risposta Email
               </Typography>
+              
+              {/* Account Menu */}
+              <IconButton
+                color="inherit"
+                onClick={(e) => setAccountMenuAnchor(e.currentTarget)}
+              >
+                <AccountCircleIcon />
+              </IconButton>
+              <Menu
+                anchorEl={accountMenuAnchor}
+                open={Boolean(accountMenuAnchor)}
+                onClose={() => setAccountMenuAnchor(null)}
+              >
+                <MenuItem disabled>
+                  <Typography variant="body2">{currentUser.email}</Typography>
+                </MenuItem>
+                <MenuItem onClick={() => { setChangePasswordOpen(true); setAccountMenuAnchor(null); }}>
+                  Change Password
+                </MenuItem>
+                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+              </Menu>
             </Toolbar>
           </AppBar>
           <Box component="main" sx={{ flexGrow: 1, p: 3, width: '100%' }}>
             <Toolbar />
-            <WorkspaceDashboard onSelectWorkspace={handleSelectWorkspace} />
+            <Routes>
+              <Route path="/" element={<WorkspaceDashboard onSelectWorkspace={handleSelectWorkspace} />} />
+              <Route path="/admin" element={currentUser.is_admin ? <AdminPanel /> : <div>Access Denied</div>} />
+            </Routes>
           </Box>
         </Box>
+        <ChangePasswordDialog 
+          open={changePasswordOpen}
+          onClose={handlePasswordChanged}
+          mustChange={mustChangePassword}
+        />
       </Router>
     );
   }
@@ -161,9 +263,31 @@ function App() {
               color="inherit"
               startIcon={<HomeIcon />}
               onClick={handleBackToWorkspaces}
+              sx={{ mr: 2 }}
             >
               Tutti i Workspaces
             </Button>
+            
+            {/* Account Menu */}
+            <IconButton
+              color="inherit"
+              onClick={(e) => setAccountMenuAnchor(e.currentTarget)}
+            >
+              <AccountCircleIcon />
+            </IconButton>
+            <Menu
+              anchorEl={accountMenuAnchor}
+              open={Boolean(accountMenuAnchor)}
+              onClose={() => setAccountMenuAnchor(null)}
+            >
+              <MenuItem disabled>
+                <Typography variant="body2">{currentUser.email}</Typography>
+              </MenuItem>
+              <MenuItem onClick={() => { setChangePasswordOpen(true); setAccountMenuAnchor(null); }}>
+                Change Password
+              </MenuItem>
+              <MenuItem onClick={handleLogout}>Logout</MenuItem>
+            </Menu>
           </Toolbar>
         </AppBar>
         <Box
@@ -206,10 +330,16 @@ function App() {
               <Route path="/historical-emails" element={<HistoricalEmails workspaceId={currentWorkspace} />} />
               <Route path="/enrollment-docs" element={<EnrollmentDocs workspaceId={currentWorkspace} />} />
               <Route path="/settings" element={<Settings workspaceId={currentWorkspace} />} />
+              <Route path="/admin" element={currentUser.is_admin ? <AdminPanel /> : <div>Access Denied</div>} />
             </Routes>
           </Container>
         </Box>
       </Box>
+      <ChangePasswordDialog 
+        open={changePasswordOpen}
+        onClose={handlePasswordChanged}
+        mustChange={mustChangePassword}
+      />
     </Router>
   );
 }

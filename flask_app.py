@@ -3,9 +3,9 @@ Flask API backend per sistema email RAG
 Interfaccia in italiano
 """
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, session
 from flask_cors import CORS
-from database import db, Email, EmailDraft, HistoricalEmail, EnrollmentDocument, SystemSettings, Correction, Workspace
+from database import db, Email, EmailDraft, HistoricalEmail, EnrollmentDocument, SystemSettings, Correction, Workspace, User
 from email_connector import EmailConnector
 from dual_rag_system import DualRAGSystem
 from language_detector import LanguageDetector
@@ -13,6 +13,7 @@ import config
 import os
 from datetime import datetime
 import json
+from functools import wraps
 
 
 app = Flask(__name__, static_folder='frontend/build', static_url_path='')
@@ -152,6 +153,288 @@ def init_components():
         print("✓ RAG system manager inizializzato")
     except Exception as e:
         print(f"⚠ Errore inizializzazione: {e}")
+
+
+# ============== AUTHENTICATION ==============
+
+def login_required(f):
+    """Decorator to require login for endpoints"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'errore': 'Authentication required'}), 401
+        
+        # Check if user still exists and is active
+        user = User.query.get(user_id)
+        if not user or not user.is_active:
+            session.clear()
+            return jsonify({'errore': 'User not found or inactive'}), 401
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_required(f):
+    """Decorator to require admin privileges"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'errore': 'Authentication required'}), 401
+        
+        user = User.query.get(user_id)
+        if not user or not user.is_active or not user.is_admin:
+            return jsonify({'errore': 'Admin privileges required'}), 403
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """User login"""
+    try:
+        data = request.json
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({'errore': 'Email e password richiesti'}), 400
+        
+        # Find user
+        user = User.query.filter_by(email=email).first()
+        if not user or not user.check_password(password):
+            return jsonify({'errore': 'Email o password errati'}), 401
+        
+        if not user.is_active:
+            return jsonify({'errore': 'Account disattivato'}), 403
+        
+        # Update last login
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+        
+        # Set session
+        session['user_id'] = user.id
+        session['is_admin'] = user.is_admin
+        
+        return jsonify({
+            'successo': True,
+            'user': user.to_dict(),
+            'must_change_password': user.must_change_password
+        })
+    
+    except Exception as e:
+        print(f"Login error: {e}")
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """User logout"""
+    session.clear()
+    return jsonify({'successo': True})
+
+
+@app.route('/api/auth/me', methods=['GET'])
+@login_required
+def get_current_user():
+    """Get current user info"""
+    user = User.query.get(session['user_id'])
+    return jsonify(user.to_dict())
+
+
+@app.route('/api/auth/change-password', methods=['POST'])
+@login_required
+def change_password():
+    """Change user password"""
+    try:
+        data = request.json
+        current_password = data.get('current_password', '')
+        new_password = data.get('new_password', '')
+        
+        if not current_password or not new_password:
+            return jsonify({'errore': 'Password attuale e nuova richieste'}), 400
+        
+        if len(new_password) < 8:
+            return jsonify({'errore': 'La password deve essere almeno 8 caratteri'}), 400
+        
+        user = User.query.get(session['user_id'])
+        
+        # Verify current password
+        if not user.check_password(current_password):
+            return jsonify({'errore': 'Password attuale errata'}), 401
+        
+        # Set new password
+        user.set_password(new_password)
+        user.must_change_password = False
+        db.session.commit()
+        
+        return jsonify({'successo': True, 'messaggio': 'Password aggiornata'})
+    
+    except Exception as e:
+        print(f"Password change error: {e}")
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+# ============== ADMIN: USER MANAGEMENT ==============
+
+@app.route('/api/admin/users', methods=['GET'])
+@admin_required
+def list_users():
+    """List all users (admin only)"""
+    try:
+        users = User.query.order_by(User.created_at.desc()).all()
+        return jsonify({
+            'users': [u.to_dict() for u in users]
+        })
+    except Exception as e:
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/admin/users', methods=['POST'])
+@admin_required
+def create_user():
+    """Create new user (admin only)"""
+    try:
+        data = request.json
+        email = data.get('email', '').strip().lower()
+        full_name = data.get('full_name', '').strip()
+        temp_password = data.get('temp_password', '')
+        is_admin = data.get('is_admin', False)
+        
+        if not email or not temp_password:
+            return jsonify({'errore': 'Email e password temporanea richiesti'}), 400
+        
+        if len(temp_password) < 8:
+            return jsonify({'errore': 'La password deve essere almeno 8 caratteri'}), 400
+        
+        # Check if email already exists
+        if User.query.filter_by(email=email).first():
+            return jsonify({'errore': 'Email già in uso'}), 400
+        
+        # Create user
+        user = User(
+            email=email,
+            full_name=full_name,
+            is_admin=is_admin,
+            is_active=True,
+            must_change_password=True
+        )
+        user.set_password(temp_password)
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        return jsonify({
+            'successo': True,
+            'user': user.to_dict(),
+            'messaggio': f'Utente creato. Password temporanea: {temp_password}'
+        }), 201
+    
+    except Exception as e:
+        print(f"Create user error: {e}")
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['PATCH'])
+@admin_required
+def update_user(user_id):
+    """Update user (admin only)"""
+    try:
+        user = User.query.get_or_404(user_id)
+        data = request.json
+        
+        # Prevent self-deactivation or removing own admin rights
+        current_user_id = session.get('user_id')
+        if user_id == current_user_id:
+            if 'is_active' in data and not data['is_active']:
+                return jsonify({'errore': 'Non puoi disattivare il tuo account'}), 400
+            if 'is_admin' in data and not data['is_admin']:
+                return jsonify({'errore': 'Non puoi rimuovere i tuoi privilegi admin'}), 400
+        
+        # Update fields
+        if 'full_name' in data:
+            user.full_name = data['full_name'].strip()
+        if 'is_active' in data:
+            user.is_active = bool(data['is_active'])
+        if 'is_admin' in data:
+            user.is_admin = bool(data['is_admin'])
+        
+        db.session.commit()
+        
+        return jsonify({
+            'successo': True,
+            'user': user.to_dict()
+        })
+    
+    except Exception as e:
+        print(f"Update user error: {e}")
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/admin/users/<int:user_id>/reset-password', methods=['POST'])
+@admin_required
+def reset_user_password(user_id):
+    """Reset user password (admin only)"""
+    try:
+        user = User.query.get_or_404(user_id)
+        data = request.json
+        new_password = data.get('new_password', '')
+        
+        if not new_password or len(new_password) < 8:
+            return jsonify({'errore': 'La password deve essere almeno 8 caratteri'}), 400
+        
+        user.set_password(new_password)
+        user.must_change_password = True
+        db.session.commit()
+        
+        return jsonify({
+            'successo': True,
+            'messaggio': f'Password reimpostata per {user.email}'
+        })
+    
+    except Exception as e:
+        print(f"Reset password error: {e}")
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(user_id):
+    """Delete user (admin only)"""
+    try:
+        current_user_id = session.get('user_id')
+        
+        # Can't delete yourself
+        if user_id == current_user_id:
+            return jsonify({'errore': 'Non puoi eliminare il tuo account'}), 400
+        
+        user = User.query.get_or_404(user_id)
+        
+        # Delete user's workspaces and their vector stores
+        for workspace in user.workspaces:
+            # Clean up vector stores
+            if workspace.id in rag_systems:
+                del rag_systems[workspace.id]
+            cleanup_workspace_vector_stores(workspace.id)
+        
+        db.session.delete(user)
+        db.session.commit()
+        
+        return jsonify({
+            'successo': True,
+            'messaggio': f'Utente {user.email} eliminato'
+        })
+    
+    except Exception as e:
+        print(f"Delete user error: {e}")
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
 
 
 @app.route('/')
@@ -1007,10 +1290,12 @@ def delete_correction(correction_id):
 # ============== ENDPOINTS WORKSPACES ==============
 
 @app.route('/api/workspaces', methods=['GET'])
+@login_required
 def get_workspaces():
-    """Ottieni tutti i workspaces"""
+    """Ottieni tutti i workspaces dell'utente corrente"""
     try:
-        workspaces = Workspace.query.order_by(Workspace.last_modified.desc()).all()
+        user_id = session.get('user_id')
+        workspaces = Workspace.query.filter_by(user_id=user_id).order_by(Workspace.last_modified.desc()).all()
         return jsonify({
             'successo': True,
             'workspaces': [w.to_dict() for w in workspaces]
@@ -1020,12 +1305,15 @@ def get_workspaces():
 
 
 @app.route('/api/workspaces', methods=['POST'])
+@login_required
 def create_workspace():
     """Crea nuovo workspace"""
     try:
         data = request.json
+        user_id = session.get('user_id')
         
         workspace = Workspace(
+            user_id=user_id,
             title=sanitize_text(data['titolo'], max_len=60),
             emoji=sanitize_text(data.get('emoji', '📧'), max_len=10),
             color=sanitize_text(data.get('colore', '#1976d2'), max_len=7),
@@ -1046,20 +1334,24 @@ def create_workspace():
 
 
 @app.route('/api/workspaces/<int:workspace_id>', methods=['GET'])
+@login_required
 def get_workspace(workspace_id):
     """Ottieni dettagli workspace"""
     try:
-        workspace = Workspace.query.get_or_404(workspace_id)
+        user_id = session.get('user_id')
+        workspace = Workspace.query.filter_by(id=workspace_id, user_id=user_id).first_or_404()
         return jsonify(workspace.to_dict())
     except Exception as e:
         return jsonify({'errore': str(e)}), 500
 
 
 @app.route('/api/workspaces/<int:workspace_id>', methods=['PUT'])
+@login_required
 def update_workspace(workspace_id):
     """Aggiorna workspace"""
     try:
-        workspace = Workspace.query.get_or_404(workspace_id)
+        user_id = session.get('user_id')
+        workspace = Workspace.query.filter_by(id=workspace_id, user_id=user_id).first_or_404()
         data = request.json
         
         if 'titolo' in data:
@@ -1085,14 +1377,12 @@ def update_workspace(workspace_id):
 
 
 @app.route('/api/workspaces/<int:workspace_id>', methods=['DELETE'])
+@login_required
 def delete_workspace(workspace_id):
     """Elimina workspace (con tutti i dati associati)"""
     try:
-        # Non permettere eliminazione workspace default
-        if workspace_id == 1:
-            return jsonify({'errore': 'Impossibile eliminare il workspace predefinito'}), 400
-        
-        workspace = Workspace.query.get_or_404(workspace_id)
+        user_id = session.get('user_id')
+        workspace = Workspace.query.filter_by(id=workspace_id, user_id=user_id).first_or_404()
         
         # 1. Clean up RAG system from memory cache
         if workspace_id in rag_systems:
@@ -1119,13 +1409,16 @@ def delete_workspace(workspace_id):
 
 
 @app.route('/api/workspaces/<int:workspace_id>/duplicate', methods=['POST'])
+@login_required
 def duplicate_workspace(workspace_id):
     """Duplica un workspace con tutti i suoi dati"""
     try:
-        original = Workspace.query.get_or_404(workspace_id)
+        user_id = session.get('user_id')
+        original = Workspace.query.filter_by(id=workspace_id, user_id=user_id).first_or_404()
         
         # Crea nuovo workspace
         duplicate = Workspace(
+            user_id=user_id,
             title=f"{original.title} (Copia)",
             emoji=original.emoji,
             color=original.color,
