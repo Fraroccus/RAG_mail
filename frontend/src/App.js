@@ -197,7 +197,7 @@ function App() {
                 onClose={() => setAccountMenuAnchor(null)}
               >
                 <MenuItem disabled>
-                  <Typography variant="body2">{currentUser.email}</Typography>
+                  <Typography variant="body2">{currentUser.username}</Typography>
                 </MenuItem>
                 <MenuItem onClick={() => { setChangePasswordOpen(true); setAccountMenuAnchor(null); }}>
                   Change Password
@@ -281,7 +281,7 @@ function App() {
               onClose={() => setAccountMenuAnchor(null)}
             >
               <MenuItem disabled>
-                <Typography variant="body2">{currentUser.email}</Typography>
+                <Typography variant="body2">{currentUser.username}</Typography>
               </MenuItem>
               <MenuItem onClick={() => { setChangePasswordOpen(true); setAccountMenuAnchor(null); }}>
                 Change Password

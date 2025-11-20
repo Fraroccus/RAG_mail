@@ -196,16 +196,16 @@ def login():
     """User login"""
     try:
         data = request.json
-        email = data.get('email', '').strip().lower()
+        username = data.get('username', '').strip()
         password = data.get('password', '')
         
-        if not email or not password:
-            return jsonify({'errore': 'Email e password richiesti'}), 400
+        if not username or not password:
+            return jsonify({'errore': 'Username e password richiesti'}), 400
         
         # Find user
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(username=username).first()
         if not user or not user.check_password(password):
-            return jsonify({'errore': 'Email o password errati'}), 401
+            return jsonify({'errore': 'Username o password errati'}), 401
         
         if not user.is_active:
             return jsonify({'errore': 'Account disattivato'}), 403
@@ -256,8 +256,8 @@ def change_password():
         if not current_password or not new_password:
             return jsonify({'errore': 'Password attuale e nuova richieste'}), 400
         
-        if len(new_password) < 8:
-            return jsonify({'errore': 'La password deve essere almeno 8 caratteri'}), 400
+        if len(new_password) < 4:
+            return jsonify({'errore': 'La password deve essere almeno 4 caratteri'}), 400
         
         user = User.query.get(session['user_id'])
         
@@ -299,24 +299,24 @@ def create_user():
     """Create new user (admin only)"""
     try:
         data = request.json
-        email = data.get('email', '').strip().lower()
+        username = data.get('username', '').strip()
         full_name = data.get('full_name', '').strip()
         temp_password = data.get('temp_password', '')
         is_admin = data.get('is_admin', False)
         
-        if not email or not temp_password:
-            return jsonify({'errore': 'Email e password temporanea richiesti'}), 400
+        if not username or not temp_password:
+            return jsonify({'errore': 'Username e password temporanea richiesti'}), 400
         
-        if len(temp_password) < 8:
-            return jsonify({'errore': 'La password deve essere almeno 8 caratteri'}), 400
+        if len(temp_password) < 4:
+            return jsonify({'errore': 'La password deve essere almeno 4 caratteri'}), 400
         
-        # Check if email already exists
-        if User.query.filter_by(email=email).first():
-            return jsonify({'errore': 'Email già in uso'}), 400
+        # Check if username already exists
+        if User.query.filter_by(username=username).first():
+            return jsonify({'errore': 'Username già in uso'}), 400
         
         # Create user
         user = User(
-            email=email,
+            username=username,
             full_name=full_name,
             is_admin=is_admin,
             is_active=True,
@@ -385,8 +385,8 @@ def reset_user_password(user_id):
         data = request.json
         new_password = data.get('new_password', '')
         
-        if not new_password or len(new_password) < 8:
-            return jsonify({'errore': 'La password deve essere almeno 8 caratteri'}), 400
+        if not new_password or len(new_password) < 4:
+            return jsonify({'errore': 'La password deve essere almeno 4 caratteri'}), 400
         
         user.set_password(new_password)
         user.must_change_password = True
@@ -394,7 +394,7 @@ def reset_user_password(user_id):
         
         return jsonify({
             'successo': True,
-            'messaggio': f'Password reimpostata per {user.email}'
+            'messaggio': f'Password reimpostata per {user.username}'
         })
     
     except Exception as e:
@@ -428,7 +428,7 @@ def delete_user(user_id):
         
         return jsonify({
             'successo': True,
-            'messaggio': f'Utente {user.email} eliminato'
+            'messaggio': f'Utente {user.username} eliminato'
         })
     
     except Exception as e:

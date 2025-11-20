@@ -12,7 +12,7 @@ import {
 import axios from 'axios';
 
 function Login({ onLoginSuccess }) {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,7 +24,7 @@ function Login({ onLoginSuccess }) {
 
     try {
       const response = await axios.post('/api/auth/login', {
-        email: email.trim().toLowerCase(),
+        username: username.trim(),
         password
       });
 
@@ -59,10 +59,10 @@ function Login({ onLoginSuccess }) {
         <form onSubmit={handleSubmit}>
           <TextField
             fullWidth
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            label="Username"
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             margin="normal"
             required
             autoFocus

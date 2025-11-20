@@ -23,8 +23,8 @@ function ChangePasswordDialog({ open, onClose, mustChange }) {
     setError('');
 
     // Validation
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (newPassword.length < 4) {
+      setError('Password must be at least 4 characters');
       return;
     }
 
@@ -100,7 +100,7 @@ function ChangePasswordDialog({ open, onClose, mustChange }) {
             margin="normal"
             required
             disabled={loading}
-            helperText="At least 8 characters"
+            helperText="At least 4 characters"
           />
 
           <TextField

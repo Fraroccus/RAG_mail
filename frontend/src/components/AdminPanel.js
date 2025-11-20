@@ -41,7 +41,7 @@ function AdminPanel() {
   
   // New user form
   const [newUser, setNewUser] = useState({
-    email: '',
+    username: '',
     full_name: '',
     temp_password: '',
     is_admin: false
@@ -69,20 +69,20 @@ function AdminPanel() {
   const handleCreateUser = async () => {
     setNewUserError('');
 
-    if (!newUser.email || !newUser.temp_password) {
-      setNewUserError('Email and temporary password are required');
+    if (!newUser.username || !newUser.temp_password) {
+      setNewUserError('Username and temporary password are required');
       return;
     }
 
-    if (newUser.temp_password.length < 8) {
-      setNewUserError('Password must be at least 8 characters');
+    if (newUser.temp_password.length < 4) {
+      setNewUserError('Password must be at least 4 characters');
       return;
     }
 
     try {
       await axios.post('/api/admin/users', newUser);
       setCreateDialogOpen(false);
-      setNewUser({ email: '', full_name: '', temp_password: '', is_admin: false });
+      setNewUser({ username: '', full_name: '', temp_password: '', is_admin: false });
       loadUsers();
     } catch (err) {
       setNewUserError(err.response?.data?.errore || 'Failed to create user');
@@ -101,7 +101,7 @@ function AdminPanel() {
   };
 
   const handleResetPassword = async (userId) => {
-    if (!resetPassword || resetPassword.length < 8) {
+    if (!resetPassword || resetPassword.length < 4) {
       return;
     }
 
@@ -117,8 +117,8 @@ function AdminPanel() {
     }
   };
 
-  const handleDeleteUser = async (userId, userEmail) => {
-    if (!window.confirm(`Are you sure you want to delete user ${userEmail}?`)) {
+  const handleDeleteUser = async (userId, username) => {
+    if (!window.confirm(`Are you sure you want to delete user ${username}?`)) {
       return;
     }
 
@@ -156,7 +156,7 @@ function AdminPanel() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Email</TableCell>
+                <TableCell>Username</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Role</TableCell>
@@ -168,7 +168,7 @@ function AdminPanel() {
             <TableBody>
               {users.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.username}</TableCell>
                   <TableCell>{user.full_name || '-'}</TableCell>
                   <TableCell>
                     {user.is_active ? (
@@ -212,7 +212,7 @@ function AdminPanel() {
                     <Tooltip title="Delete User">
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteUser(user.id, user.email)}
+                        onClick={() => handleDeleteUser(user.id, user.username)}
                         color="error"
                       >
                         <DeleteIcon />
@@ -238,10 +238,10 @@ function AdminPanel() {
 
           <TextField
             fullWidth
-            label="Email"
-            type="email"
-            value={newUser.email}
-            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+            label="Username"
+            type="text"
+            value={newUser.username}
+            onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
             margin="normal"
             required
           />
@@ -288,7 +288,7 @@ function AdminPanel() {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Reset Password for {resetPasswordDialog?.email}</DialogTitle>
+        <DialogTitle>Reset Password for {resetPasswordDialog?.username}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
@@ -297,7 +297,7 @@ function AdminPanel() {
             value={resetPassword}
             onChange={(e) => setResetPassword(e.target.value)}
             margin="normal"
-            helperText="At least 8 characters"
+            helperText="At least 4 characters"
           />
         </DialogContent>
         <DialogActions>
@@ -305,7 +305,7 @@ function AdminPanel() {
           <Button 
             onClick={() => handleResetPassword(resetPasswordDialog.id)} 
             variant="contained"
-            disabled={resetPassword.length < 8}
+            disabled={resetPassword.length < 4}
           >
             Reset Password
           </Button>
