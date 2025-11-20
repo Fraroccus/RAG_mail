@@ -21,7 +21,7 @@ app.config['SECRET_KEY'] = config.FLASK_SECRET_KEY
 app.config['SQLALCHEMY_DATABASE_URI'] = config.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-CORS(app)
+CORS(app, supports_credentials=True)
 db.init_app(app)
 
 # Simple input sanitization

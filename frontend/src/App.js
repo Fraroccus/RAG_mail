@@ -43,6 +43,9 @@ import Login from './components/Login';
 import ChangePasswordDialog from './components/ChangePasswordDialog';
 import AdminPanel from './components/AdminPanel';
 
+// Configure axios to send cookies with requests
+axios.defaults.withCredentials = true;
+
 const drawerWidth = 240;
 
 function App() {
