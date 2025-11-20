@@ -28,9 +28,11 @@ import {
   Delete as DeleteIcon,
   VpnKey as VpnKeyIcon,
   Block as BlockIcon,
-  CheckCircle as CheckCircleIcon
+  CheckCircle as CheckCircleIcon,
+  ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 function AdminPanel() {
   const [users, setUsers] = useState([]);
@@ -38,6 +40,7 @@ function AdminPanel() {
   const [error, setError] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [resetPasswordDialog, setResetPasswordDialog] = useState(null);
+  const navigate = useNavigate();
   
   // New user form
   const [newUser, setNewUser] = useState({
@@ -134,9 +137,18 @@ function AdminPanel() {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">
-            User Management
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              onClick={() => navigate('/')}
+            >
+              Back to Workspaces
+            </Button>
+            <Typography variant="h4" component="h1">
+              User Management
+            </Typography>
+          </Box>
           <Button
             variant="contained"
             startIcon={<PersonAddIcon />}
