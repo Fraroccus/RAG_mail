@@ -66,8 +66,8 @@ MS_REDIRECT_URI = os.getenv('MS_REDIRECT_URI', 'http://localhost:5000/callback')
 
 # Flask Configuration
 FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
-FLASK_PORT = 5000
-FLASK_DEBUG = True
+FLASK_PORT = int(os.getenv('PORT', 5000))  # Railway/Render use PORT env var
+FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # Default to False in production
 
 # Email Signature (optional)
 EMAIL_SIGNATURE = os.getenv('EMAIL_SIGNATURE', '')

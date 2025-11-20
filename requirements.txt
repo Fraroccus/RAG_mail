@@ -29,6 +29,7 @@ psycopg2-binary>=2.9.0
 MSAL>=1.24.0
 requests>=2.31.0
 langdetect>=1.0.9
+gunicorn>=21.2.0
 
 # React Frontend (served by Flask)
 # Install Node.js separately for React development
