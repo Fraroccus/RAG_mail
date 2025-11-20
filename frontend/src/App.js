@@ -133,11 +133,6 @@ function App() {
     { text: 'Impostazioni', icon: <SettingsIcon />, path: '/settings' }
   ];
 
-  // Add admin panel for admins
-  if (currentUser?.is_admin) {
-    menuItems.push({ text: 'Admin Panel', icon: <AdminIcon />, path: '/admin' });
-  }
-
   const drawer = (
     <div>
       <Toolbar>
