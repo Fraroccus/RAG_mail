@@ -48,7 +48,8 @@ axios.defaults.withCredentials = true;
 
 const drawerWidth = 240;
 
-function App() {
+function AppContent() {
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [currentWorkspace, setCurrentWorkspace] = useState(null);
   const [workspaceInfo, setWorkspaceInfo] = useState(null);
@@ -89,6 +90,7 @@ function App() {
       setCurrentUser(null);
       setCurrentWorkspace(null);
       setAccountMenuAnchor(null);
+      navigate('/'); // Navigate to root after logout
     } catch (err) {
       console.error('Logout error:', err);
     }
@@ -181,7 +183,7 @@ function App() {
   // Show workspace dashboard if no workspace selected
   if (!currentWorkspace) {
     return (
-      <Router>
+      <>
         <Box sx={{ display: 'flex' }}>
           <CssBaseline />
           <AppBar position="fixed">
@@ -238,13 +240,13 @@ function App() {
           onClose={handlePasswordChanged}
           mustChange={mustChangePassword}
         />
-      </Router>
+      </>
     );
   }
 
   // Show main app with workspace sidebar
   return (
-    <Router>
+    <>
       <Box sx={{ display: 'flex' }}>
         <CssBaseline />
         <AppBar
@@ -359,6 +361,14 @@ function App() {
         onClose={handlePasswordChanged}
         mustChange={mustChangePassword}
       />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }
