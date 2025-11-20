@@ -184,6 +184,19 @@ function App() {
                 ITS MAKER ACADEMY - Sistema Risposta Email
               </Typography>
               
+              {/* Admin Panel Button */}
+              {currentUser.is_admin && (
+                <Button
+                  color="inherit"
+                  startIcon={<AdminIcon />}
+                  component={Link}
+                  to="/admin"
+                  sx={{ mr: 2 }}
+                >
+                  Admin Panel
+                </Button>
+              )}
+              
               {/* Account Menu */}
               <IconButton
                 color="inherit"
