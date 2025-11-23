@@ -1,10 +1,10 @@
 # Multi-stage build to keep image small
-FROM node:18-slim AS frontend-builder
+FROM node:18-alpine AS frontend-builder
 
 # Build frontend
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci --only=production
+RUN npm ci --only=production --ignore-scripts
 COPY frontend/ ./
 RUN npm run build
 
@@ -14,17 +14,21 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies (minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application code first
 COPY . .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies one by one to reduce memory spikes
+RUN pip install --no-cache-dir gunicorn && \
+    pip install --no-cache-dir Flask Flask-SQLAlchemy Flask-CORS && \
+    pip install --no-cache-dir psycopg2-binary requests && \
+    pip install --no-cache-dir sentence-transformers && \
+    pip install --no-cache-dir faiss-cpu && \
+    pip install --no-cache-dir python-dotenv langdetect MSAL
 
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/frontend/build ./frontend/build
