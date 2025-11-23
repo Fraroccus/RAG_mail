@@ -1,12 +1,17 @@
 # Multi-stage build to keep image small
-FROM node:18-alpine AS frontend-builder
+FROM node:18-slim AS frontend-builder
 
 # Build frontend
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci --only=production --ignore-scripts
+
+# Install dependencies with legacy peer deps flag
+RUN npm install --legacy-peer-deps
+
 COPY frontend/ ./
-RUN npm run build
+
+# Build with increased memory limit
+RUN NODE_OPTIONS="--max-old-space-size=512" npm run build
 
 # Python runtime stage
 FROM python:3.11-slim
