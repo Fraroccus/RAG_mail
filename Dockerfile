@@ -5,13 +5,13 @@ FROM node:18-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 
-# Install dependencies with legacy peer deps flag
-RUN npm install --legacy-peer-deps
+# Install dependencies (lock file is now synced)
+RUN npm ci --legacy-peer-deps
 
 COPY frontend/ ./
 
-# Build with increased memory limit
-RUN NODE_OPTIONS="--max-old-space-size=512" npm run build
+# Build with much higher memory limit for DigitalOcean
+RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
 # Python runtime stage
 FROM python:3.11-slim
