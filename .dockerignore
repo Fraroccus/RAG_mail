@@ -37,6 +37,7 @@ frontend/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# DON'T ignore frontend/build - we need it for deployment
 
 # Git
 .git/

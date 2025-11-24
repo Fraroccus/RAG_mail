@@ -1,42 +1,21 @@
-# Multi-stage build to keep image small
-FROM node:18-slim AS frontend-builder
-
-# Build frontend
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-
-# Install dependencies (lock file is now synced)
-RUN npm ci --legacy-peer-deps
-
-COPY frontend/ ./
-
-# Build with much higher memory limit for DigitalOcean
-RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build
-
-# Python runtime stage
+# Simplified single-stage build with pre-built frontend
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies (minimal)
+# Install minimal system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy application code first
+# Copy application code
 COPY . .
 
-# Install Python dependencies one by one to reduce memory spikes
-RUN pip install --no-cache-dir gunicorn && \
-    pip install --no-cache-dir Flask Flask-SQLAlchemy Flask-CORS && \
-    pip install --no-cache-dir psycopg2-binary requests && \
-    pip install --no-cache-dir sentence-transformers && \
-    pip install --no-cache-dir faiss-cpu && \
-    pip install --no-cache-dir python-dotenv langdetect MSAL
-
-# Copy built frontend from previous stage
-COPY --from=frontend-builder /app/frontend/build ./frontend/build
+# Install only essential Python dependencies (lighter packages first)
+RUN pip install --no-cache-dir gunicorn Flask Flask-SQLAlchemy Flask-CORS && \
+    pip install --no-cache-dir psycopg2-binary requests python-dotenv langdetect MSAL && \
+    pip install --no-cache-dir sentence-transformers faiss-cpu
 
 # Create directory for vector store
 RUN mkdir -p chroma_db
