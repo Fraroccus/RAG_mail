@@ -12,10 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy application code
 COPY . .
 
-# Install only essential Python dependencies (lighter packages first)
-RUN pip install --no-cache-dir gunicorn Flask Flask-SQLAlchemy Flask-CORS && \
-    pip install --no-cache-dir psycopg2-binary requests python-dotenv langdetect MSAL && \
-    pip install --no-cache-dir sentence-transformers faiss-cpu
+# Install essential Python dependencies from minimal requirements
+RUN pip install --no-cache-dir -r requirements-deploy.txt
 
 # Create directory for vector store
 RUN mkdir -p chroma_db
