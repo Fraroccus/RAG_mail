@@ -1536,7 +1536,7 @@ with app.app_context():
         print("✓ Components initialized")
         
         # Create admin user if it doesn't exist
-        from models import User  # Import here to ensure models are loaded
+        from database import User  # Import here to ensure models are loaded
         admin = User.query.filter_by(username='ADMIN').first()
         if not admin:
             print("Creating default admin user...")
