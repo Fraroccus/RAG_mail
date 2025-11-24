@@ -1,16 +1,11 @@
-# Core ML Libraries
-torch>=2.0.0
-transformers>=4.30.0
+# Minimal deployment requirements (production only)
+# Heavy packages like torch, transformers, langchain removed for deployment
+
+# Core ML (only what's needed)
 sentence-transformers>=2.2.0
-accelerate>=0.20.0
 
 # Vector Database
-chromadb>=0.4.0
 faiss-cpu>=1.7.4
-
-# RAG Framework
-langchain>=0.1.0
-langchain-community>=0.0.10
 
 # Document Processing
 pypdf>=3.0.0
