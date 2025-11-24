@@ -9,11 +9,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy application code
-COPY . .
+# Copy requirements file first
+COPY requirements-deploy.txt .
 
-# Install essential Python dependencies from minimal requirements
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements-deploy.txt
+
+# Copy rest of application code
+COPY . .
 
 # Create directory for vector store
 RUN mkdir -p chroma_db
