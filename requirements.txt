@@ -1,7 +1,6 @@
-# Minimal deployment requirements for Hugging Face Spaces
-
-# Core ML (only what's needed)
-sentence-transformers==2.2.2
+# Core ML - Updated versions for compatibility
+sentence-transformers==2.7.0
+huggingface-hub==0.23.0
 
 # Vector Database
 faiss-cpu==1.7.4
@@ -24,6 +23,3 @@ psycopg2-binary==2.9.9
 MSAL==1.28.0
 requests==2.31.0
 gunicorn==21.2.0
-
-# React Frontend (served by Flask)
-# Install Node.js separately for React development

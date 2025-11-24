@@ -37,7 +37,6 @@ frontend/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-# DON'T ignore frontend/build - we need it for deployment
 
 # Git
 .git/
@@ -45,16 +44,14 @@ yarn-error.log*
 
 # Documentation
 *.md
-*.txt
 
 # Docker
 Dockerfile
 .dockerignore
 
-# Deployment configs
+# Deployment configs (remove runtime.txt from here since you need it)
 fly.toml
 Procfile
-runtime.txt
 
 # Migration scripts
 migrate_*.py
