@@ -21,6 +21,11 @@ app.config['SECRET_KEY'] = config.FLASK_SECRET_KEY
 app.config['SQLALCHEMY_DATABASE_URI'] = config.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Session configuration for Hugging Face Spaces (iframe)
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+
 # CORS Configuration - Allow credentials and specific origins in production
 allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
 CORS(app, supports_credentials=True, origins=allowed_origins)
