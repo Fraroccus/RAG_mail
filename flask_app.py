@@ -444,6 +444,14 @@ def serve_frontend():
     """Serve React frontend"""
     return send_from_directory(app.static_folder, 'index.html')
 
+@app.route('/<path:path>')
+def serve_static(path):
+    """Serve static files or fallback to index.html for React Router"""
+    try:
+        return send_from_directory(app.static_folder, path)
+    except:
+        return send_from_directory(app.static_folder, 'index.html')
+
 
 # ============== ENDPOINTS EMAIL ==============
 
@@ -1514,22 +1522,6 @@ def health_check():
         'status': 'healthy',
         'database': 'connected' if db.engine else 'disconnected'
     }), 200
-
-
-# ============== FRONTEND SERVING ==============
-
-@app.route('/')
-def serve_frontend():
-    """Serve React frontend"""
-    return send_from_directory(app.static_folder, 'index.html')
-
-@app.route('/<path:path>')
-def serve_static(path):
-    """Serve static files or fallback to index.html for React Router"""
-    try:
-        return send_from_directory(app.static_folder, path)
-    except:
-        return send_from_directory(app.static_folder, 'index.html')
 
 
 # ============== INIZIALIZZAZIONE ==============
