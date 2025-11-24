@@ -16,7 +16,7 @@ import json
 from functools import wraps
 
 
-app = Flask(__name__, static_folder='frontend/build', static_url_path='')
+app = Flask(__name__, static_folder='build', static_url_path='')
 app.config['SECRET_KEY'] = config.FLASK_SECRET_KEY
 app.config['SQLALCHEMY_DATABASE_URI'] = config.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -1514,6 +1514,22 @@ def health_check():
         'status': 'healthy',
         'database': 'connected' if db.engine else 'disconnected'
     }), 200
+
+
+# ============== FRONTEND SERVING ==============
+
+@app.route('/')
+def serve_frontend():
+    """Serve React frontend"""
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    """Serve static files or fallback to index.html for React Router"""
+    try:
+        return send_from_directory(app.static_folder, path)
+    except:
+        return send_from_directory(app.static_folder, 'index.html')
 
 
 # ============== INIZIALIZZAZIONE ==============
