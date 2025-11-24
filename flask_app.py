@@ -15,8 +15,18 @@ from datetime import datetime
 import json
 from functools import wraps
 
+# Determine static folder based on environment
+if os.path.exists('frontend/build'):
+    # Local development
+    static_folder_path = 'frontend/build'
+    print(f"✓ Using local static folder: {static_folder_path}")
+else:
+    # Production (HF Spaces)
+    static_folder_path = 'build'
+    print(f"✓ Using production static folder: {static_folder_path}")
 
-app = Flask(__name__, static_folder='build', static_url_path='')
+app = Flask(__name__, static_folder=static_folder_path, static_url_path='')
+print(f"✓ Flask static_folder set to: {app.static_folder}")
 app.config['SECRET_KEY'] = config.FLASK_SECRET_KEY
 app.config['SQLALCHEMY_DATABASE_URI'] = config.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -1409,7 +1419,12 @@ def delete_workspace(workspace_id):
         deleted_files = cleanup_workspace_vector_stores(workspace_id)
         print(f"✓ Rimossi {deleted_files} file vector store")
         
-        # 3. Delete database records (cascade will handle related data)
+        # 3. Delete system settings (to avoid foreign key constraint violation)
+        print(f"🗑️ Eliminazione system settings per workspace {workspace_id}...")
+        SystemSettings.query.filter_by(workspace_id=workspace_id).delete()
+        print(f"✓ System settings eliminati")
+        
+        # 4. Delete database records (cascade will handle related data)
         db.session.delete(workspace)
         db.session.commit()
         
