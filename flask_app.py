@@ -1529,6 +1529,23 @@ def health_check():
 with app.app_context():
     db.create_all()
     init_components()
+    
+    # Create admin user if it doesn't exist
+    admin = User.query.filter_by(username='ADMIN').first()
+    if not admin:
+        print("Creating default admin user...")
+        admin = User(
+            username='ADMIN',
+            full_name='Administrator',
+            is_admin=True,
+            is_active=True,
+            must_change_password=False
+        )
+        admin.set_password('MAKER')
+        db.session.add(admin)
+        db.session.commit()
+        print("✓ Admin user created (username: ADMIN, password: MAKER)")
+    
     print("✓ Database inizializzato")
 
 
