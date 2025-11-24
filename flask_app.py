@@ -1518,6 +1518,129 @@ def duplicate_workspace(workspace_id):
         return jsonify({'errore': str(e)}), 500
 
 
+@app.route('/api/admin/workspaces/<int:workspace_id>/export', methods=['POST'])
+@admin_required
+def export_workspace_to_users(workspace_id):
+    """Esporta workspace a uno o più utenti (admin only)"""
+    try:
+        data = request.json
+        target_user_ids = data.get('user_ids', [])
+        
+        if not target_user_ids or not isinstance(target_user_ids, list):
+            return jsonify({'errore': 'Lista user_ids richiesta'}), 400
+        
+        # Get original workspace (admin can access any workspace)
+        original = Workspace.query.get_or_404(workspace_id)
+        
+        created_workspaces = []
+        errors = []
+        
+        for target_user_id in target_user_ids:
+            try:
+                # Verify target user exists and is active
+                target_user = User.query.get(target_user_id)
+                if not target_user or not target_user.is_active:
+                    errors.append(f"User ID {target_user_id} non trovato o inattivo")
+                    continue
+                
+                # Create new workspace for target user
+                new_workspace = Workspace(
+                    user_id=target_user_id,
+                    title=original.title,
+                    emoji=original.emoji,
+                    color=original.color,
+                    is_active=True
+                )
+                db.session.add(new_workspace)
+                db.session.flush()  # Get ID before copying related data
+                
+                # Copy historical emails
+                for email in original.historical_emails:
+                    new_email = HistoricalEmail(
+                        workspace_id=new_workspace.id,
+                        subject=email.subject,
+                        student_query=email.student_query,
+                        response=email.response,
+                        language=email.language,
+                        tags=email.tags,
+                        country=email.country,
+                        program=email.program,
+                        date_sent=email.date_sent
+                    )
+                    db.session.add(new_email)
+                
+                # Copy enrollment documents
+                for doc in original.enrollment_documents:
+                    new_doc = EnrollmentDocument(
+                        workspace_id=new_workspace.id,
+                        title=doc.title,
+                        filename=doc.filename,
+                        content=doc.content,
+                        document_type=doc.document_type,
+                        country=doc.country,
+                        program=doc.program,
+                        language=doc.language,
+                        priority=doc.priority
+                    )
+                    db.session.add(new_doc)
+                
+                # Copy corrections
+                for corr in original.corrections:
+                    new_corr = Correction(
+                        workspace_id=new_workspace.id,
+                        title=corr.title,
+                        wrong_info=corr.wrong_info,
+                        correct_info=corr.correct_info,
+                        context=corr.context,
+                        category=corr.category,
+                        priority=corr.priority
+                    )
+                    db.session.add(new_corr)
+                
+                # Copy system settings (system prompt)
+                original_settings = SystemSettings.query.filter_by(
+                    key='system_prompt',
+                    workspace_id=workspace_id
+                ).first()
+                
+                if original_settings:
+                    new_settings = SystemSettings(
+                        key='system_prompt',
+                        workspace_id=new_workspace.id,
+                        value=original_settings.value,
+                        description=original_settings.description
+                    )
+                    db.session.add(new_settings)
+                
+                db.session.commit()
+                
+                # Copy FAISS vector stores
+                print(f"📋 Esportazione vector stores da workspace {workspace_id} a {new_workspace.id} (user: {target_user.username})...")
+                copied_files = duplicate_workspace_vector_stores(workspace_id, new_workspace.id)
+                print(f"✓ Copiati {copied_files} file vector store")
+                
+                created_workspaces.append({
+                    'user': target_user.username,
+                    'workspace': new_workspace.to_dict(),
+                    'file_copiati': copied_files
+                })
+                
+            except Exception as user_error:
+                errors.append(f"Errore per user ID {target_user_id}: {str(user_error)}")
+                db.session.rollback()
+        
+        return jsonify({
+            'successo': True,
+            'workspaces_creati': len(created_workspaces),
+            'dettagli': created_workspaces,
+            'errori': errors if errors else None
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'errore': str(e)}), 500
+
+
 # ============== HEALTH CHECK ==============
 
 @app.route('/health')

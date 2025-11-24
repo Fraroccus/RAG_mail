@@ -230,7 +230,7 @@ function AppContent() {
           <Box component="main" sx={{ flexGrow: 1, p: 3, width: '100%' }}>
             <Toolbar />
             <Routes>
-              <Route path="/" element={<WorkspaceDashboard onSelectWorkspace={handleSelectWorkspace} />} />
+              <Route path="/" element={<WorkspaceDashboard onSelectWorkspace={handleSelectWorkspace} currentUser={currentUser} />} />
               <Route path="/admin" element={currentUser.is_admin ? <AdminPanel /> : <div>Access Denied</div>} />
             </Routes>
           </Box>

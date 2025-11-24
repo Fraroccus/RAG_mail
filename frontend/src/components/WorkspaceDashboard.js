@@ -2,20 +2,28 @@ import React, { useState, useEffect } from 'react';
 import {
   Container, Grid, Card, CardContent, CardActions, Typography, Box,
   IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent,
-  DialogActions, TextField, Button
+  DialogActions, TextField, Button, List, ListItem, ListItemText, Checkbox,
+  Alert, CircularProgress
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AddIcon from '@mui/icons-material/Add';
+import axios from 'axios';
 
 // Common emojis for workspace
 const COMMON_EMOJIS = ['🎓', '📧', '💼', '🏫', '🌍', '📚', '👨‍🎓', '🎯', '📝', '💡', '🚀', '⭐', '🏆', '📊', '🔔', '📅'];
 
-export default function WorkspaceDashboard({ onSelectWorkspace }) {
+export default function WorkspaceDashboard({ onSelectWorkspace, currentUser }) {
   const [workspaces, setWorkspaces] = useState([]);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState(null);
+  const [exportSuccess, setExportSuccess] = useState(null);
   
   // Form state
   const [formTitle, setFormTitle] = useState('');
@@ -152,6 +160,63 @@ export default function WorkspaceDashboard({ onSelectWorkspace }) {
     handleMenuClose();
   };
 
+  const handleExportOpen = async () => {
+    handleMenuClose();
+    setExportError(null);
+    setExportSuccess(null);
+    setSelectedUserIds([]);
+    
+    // Load all active users
+    try {
+      const res = await axios.get('/api/admin/users');
+      if (res.data.users) {
+        // Filter out current user's own ID
+        const filteredUsers = res.data.users.filter(u => u.is_active && u.id !== currentUser.id);
+        setAllUsers(filteredUsers);
+      }
+    } catch (err) {
+      setExportError('Errore caricamento utenti');
+    }
+    
+    setExportDialogOpen(true);
+  };
+
+  const handleUserToggle = (userId) => {
+    setSelectedUserIds(prev => 
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const handleExportConfirm = async () => {
+    if (selectedUserIds.length === 0) {
+      setExportError('Seleziona almeno un utente');
+      return;
+    }
+
+    setExportLoading(true);
+    setExportError(null);
+    setExportSuccess(null);
+
+    try {
+      const res = await axios.post(`/api/admin/workspaces/${selectedWorkspace.id}/export`, {
+        user_ids: selectedUserIds
+      });
+
+      if (res.data.successo) {
+        setExportSuccess(`Workspace esportato a ${res.data.workspaces_creati} utente/i`);
+        setTimeout(() => {
+          setExportDialogOpen(false);
+        }, 2000);
+      }
+    } catch (err) {
+      setExportError(err.response?.data?.errore || 'Errore durante l\'esportazione');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const handleEmojiSelect = (emoji) => {
     setFormEmoji(emoji);
   };
@@ -273,6 +338,9 @@ export default function WorkspaceDashboard({ onSelectWorkspace }) {
       >
         <MenuItem onClick={handleEditOpen}>Modifica</MenuItem>
         <MenuItem onClick={handleDuplicate}>Duplica</MenuItem>
+        {currentUser?.is_admin && (
+          <MenuItem onClick={handleExportOpen}>Esporta</MenuItem>
+        )}
         <MenuItem onClick={handleDelete} disabled={selectedWorkspace?.id === 1}>
           Elimina
         </MenuItem>
@@ -378,6 +446,77 @@ export default function WorkspaceDashboard({ onSelectWorkspace }) {
           <Button onClick={() => setEditDialogOpen(false)}>Annulla</Button>
           <Button onClick={handleEditSave} variant="contained" disabled={!formTitle.trim()}>
             Salva
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Export Dialog */}
+      <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Esporta Workspace a Utenti</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Seleziona gli utenti a cui esportare il workspace "{selectedWorkspace?.title}".
+              Verranno copiati: email storiche, documenti, correzioni, prompt di sistema e vector stores.
+            </Typography>
+
+            {exportError && (
+              <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+                {exportError}
+              </Alert>
+            )}
+
+            {exportSuccess && (
+              <Alert severity="success" sx={{ mt: 2, mb: 2 }}>
+                {exportSuccess}
+              </Alert>
+            )}
+
+            {exportLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <List sx={{ mt: 2, maxHeight: 400, overflow: 'auto' }}>
+                {allUsers.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+                    Nessun utente disponibile
+                  </Typography>
+                ) : (
+                  allUsers.map((user) => (
+                    <ListItem
+                      key={user.id}
+                      dense
+                      button
+                      onClick={() => handleUserToggle(user.id)}
+                    >
+                      <Checkbox
+                        edge="start"
+                        checked={selectedUserIds.includes(user.id)}
+                        tabIndex={-1}
+                        disableRipple
+                      />
+                      <ListItemText
+                        primary={user.username}
+                        secondary={user.full_name}
+                      />
+                    </ListItem>
+                  ))
+                )}
+              </List>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExportDialogOpen(false)} disabled={exportLoading}>
+            Annulla
+          </Button>
+          <Button 
+            onClick={handleExportConfirm} 
+            variant="contained" 
+            disabled={exportLoading || selectedUserIds.length === 0}
+          >
+            {exportLoading ? 'Esportazione...' : `Esporta (${selectedUserIds.length})`}
           </Button>
         </DialogActions>
       </Dialog>
