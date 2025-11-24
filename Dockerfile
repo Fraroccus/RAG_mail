@@ -4,22 +4,14 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install minimal system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements file first
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy rest of application code
+# Copy all application files first
 COPY . .
 
-# Create directory for vector store
-RUN mkdir -p chroma_db
+# Install minimal system dependencies and Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir -r requirements.txt && \
+    mkdir -p chroma_db
 
 # Expose port
 EXPOSE 8080
